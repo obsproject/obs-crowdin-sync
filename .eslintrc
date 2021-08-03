@@ -1,0 +1,22 @@
+{
+	"env": {
+		"commonjs": true,
+		"node": true,
+		"es2020": true
+	},
+	"extends": ["standard", "plugin:jsdoc/recommended"],
+	"parser": "@typescript-eslint/parser",
+	"parserOptions": {
+		"ecmaVersion": 2020,
+		"sourceType": "module"
+	},
+	"plugins": ["@typescript-eslint", "jsdoc", "only-warn"],
+	"rules": {
+		"indent": ["error", "tab"],
+		"no-tabs": "off",
+		"semi": ["error", "always"],
+		"space-before-function-paren": ["error", "never"],
+		"jsdoc/require-param-type": "off",
+		"jsdoc/require-returns-type": "off"
+	}
+}

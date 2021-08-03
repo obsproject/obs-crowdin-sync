@@ -1,0 +1,12 @@
+{
+	"compilerOptions": {
+		"module": "ES2020",
+		"target": "ES2020",
+		"moduleResolution": "node",
+		"removeComments": true,
+		"outDir": "out",
+		"strict": true,
+		"sourceMap": true
+	},
+	"include": ["src", "../shared"]
+}

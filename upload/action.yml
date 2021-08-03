@@ -1,0 +1,5 @@
+name: "crowdin-synchronization-upload"
+description: "Updates the source files in the OBS Studio Crowdin project."
+runs:
+  using: "node12"
+  main: "dist/index.js"
