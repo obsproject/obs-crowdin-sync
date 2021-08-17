@@ -7,8 +7,7 @@ import { execute, normalize } from '../../shared/utils';
 import { projectId } from '../../shared/constants';
 
 const { sourceFilesApi, uploadStorageApi } = new Crowdin({
-	token: process.env.CROWDIN_PAT!,
-	organization: 'vainock'
+	token: process.env.CROWDIN_PAT!
 });
 
 (async() => {
@@ -24,8 +23,7 @@ const { sourceFilesApi, uploadStorageApi } = new Crowdin({
 		let failed = 0;
 		for (const filePath of normalize(execute(`git diff --name-only ${process.env.GITHUB_EVENT_BEFORE} ${process.env.GITHUB_SHA}`)).split('\n')) {
 			if (sourceFiles.has(filePath)) {
-				const storageId = (await uploadStorageApi.addStorage('File.ini', fse.readFileSync(filePath))).data.id;
-				await sourceFilesApi.updateOrRestoreFile(projectId, sourceFiles.get(filePath)!, { storageId: storageId });
+				await sourceFilesApi.updateOrRestoreFile(projectId, sourceFiles.get(filePath)!, { storageId: (await uploadStorageApi.addStorage('File.ini', fse.readFileSync(filePath))).data.id });
 				core.info(`${filePath} updated on Crowdin.`);
 			} else {
 				core.error(`${filePath} couldn't be found on Crowdin.`);
@@ -33,7 +31,7 @@ const { sourceFilesApi, uploadStorageApi } = new Crowdin({
 			}
 		}
 		if (failed) {
-			throw new Error(`${failed} file(s) couldn't be found on Crowdin. Fix the export path or upload the file(s) if missing.`);
+			throw new Error(`${failed} file(s) couldn't be found on Crowdin and their export path needs to be fixed. New files need to be uploaded first manually to be updated.`);
 		}
 	} catch (error) {
 		console.error(error);
