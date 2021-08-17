@@ -11522,8 +11522,7 @@ const promisesLimit = 10;
 
 
 const { sourceFilesApi, uploadStorageApi } = new (out_default())({
-    token: process.env.CROWDIN_PAT,
-    organization: 'vainock'
+    token: process.env.CROWDIN_PAT
 });
 (async () => {
     try {
@@ -11538,8 +11537,7 @@ const { sourceFilesApi, uploadStorageApi } = new (out_default())({
         let failed = 0;
         for (const filePath of normalize(execute(`git diff --name-only ${process.env.GITHUB_EVENT_BEFORE} ${process.env.GITHUB_SHA}`)).split('\n')) {
             if (sourceFiles.has(filePath)) {
-                const storageId = (await uploadStorageApi.addStorage('File.ini', lib.readFileSync(filePath))).data.id;
-                await sourceFilesApi.updateOrRestoreFile(projectId, sourceFiles.get(filePath), { storageId: storageId });
+                await sourceFilesApi.updateOrRestoreFile(projectId, sourceFiles.get(filePath), { storageId: (await uploadStorageApi.addStorage('File.ini', lib.readFileSync(filePath))).data.id });
                 core.info(`${filePath} updated on Crowdin.`);
             }
             else {
@@ -11548,7 +11546,7 @@ const { sourceFilesApi, uploadStorageApi } = new (out_default())({
             }
         }
         if (failed) {
-            throw new Error(`${failed} file(s) couldn't be found on Crowdin. Fix the export path or upload the file(s) if missing.`);
+            throw new Error(`${failed} file(s) couldn't be found on Crowdin and their export path needs to be fixed. New files need to be uploaded first manually to be updated.`);
         }
     }
     catch (error) {

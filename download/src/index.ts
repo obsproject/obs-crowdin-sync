@@ -351,7 +351,7 @@ async function processBuild(buildId: number, sourceFiles: Map<number, Map<string
 /**
  * Updates `com.obsproject.Studio.desktop` file with translations.
  *
- * @param languageFiles Full language codes mapped to their desktop file translations.
+ * @param languageFiles Locales mapped to their desktop file translations.
  */
 function desktopFile(languageFiles: Map<string, Map<string, string>>): void {
 	core.info('UI/xdg-data/com.obsproject.Studio.desktop');
@@ -378,8 +378,8 @@ function desktopFile(languageFiles: Map<string, Map<string, string>>): void {
 /**
  * Updates `locale.ini` file with languages.
  *
- * @param languageList Locale mapped to their locale language name.
- * @param languageCodeMap Locale mapped to their language id.
+ * @param languageList Locales mapped to their locale language name.
+ * @param languageCodeMap Locales mapped to their language id.
  */
 async function languagesFile(languageList: Map<string, string>, languageCodeMap: Map<string, string>): Promise<void> {
 	core.info('UI/data/locale.ini');
