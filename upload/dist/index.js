@@ -11506,6 +11506,12 @@ function normalize(text) {
 const projectId = 51028;
 const submodules = (/* unused pure expression or super */ null && (['enc-amf', 'obs-browser', 'obs-vst']));
 const sourceEqualityCheck = (/* unused pure expression or super */ null && (['UI', 'plugins']));
+const gitAddAllowList = {
+    all: ['AUTHORS', 'UI/data/locale/*-*.ini', 'plugins/*/data/locale/*-*.ini', 'plugins/mac-virtualcam/src/obs-plugin/data/locale/*-*.ini', 'UI/data/locale.ini', 'UI/xdg-data/com.obsproject.Studio.desktop'],
+    'enc-amf': 'plugins/enc-amf/resources/locale/*-*.ini',
+    'obs-browser': 'plugins/obs-browser/data/locale/*-*.ini',
+    'obs-vst': 'plugins/obs-vst/data/locale/*-*.ini'
+};
 const promisesLimit = 10;
 
 ;// CONCATENATED MODULE: ./out/upload/src/index.js
