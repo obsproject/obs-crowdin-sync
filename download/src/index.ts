@@ -7,7 +7,7 @@ import * as plimit from 'p-limit';
 import Crowdin, { ReportsModel, UsersModel } from '@crowdin/crowdin-api-client';
 
 import { wait, execute, normalize } from '../../shared/utils';
-import { projectId, submodules, sourceEqualityCheck, promisesLimit } from '../../shared/constants';
+import { projectId, submodules, sourceEqualityCheck, promisesLimit, gitAddAllowList } from '../../shared/constants';
 import { LanguagesGatheringResult, BuildProcessingResult } from './interfaces';
 import strings from './strings';
 
@@ -433,12 +433,14 @@ function pushChanges(detachedSubmodules: string[]): void {
 			process.chdir('../..');
 			continue;
 		}
-		execute('git add .');
+		execute(`git add '${gitAddAllowList[submodule]}'`);
 		execute(`git commit -m '${strings.git.commitTitle}'`);
 		execute('git push');
 		process.chdir('../..');
 	}
-	execute('git add .');
+	for (const path of gitAddAllowList.all) {
+		execute(`git add '${path}'`);
+	}
 	for (const submodule of detachedSubmodules) {
 		core.info(`${submodule} has commits not pushed to the main repository. Only pushing to submodule.`);
 		execute(`git checkout HEAD -- plugins/${submodule}`);

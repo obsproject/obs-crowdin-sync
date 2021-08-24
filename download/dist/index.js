@@ -14327,6 +14327,12 @@ function normalize(text) {
 const projectId = 51028;
 const submodules = ['enc-amf', 'obs-browser', 'obs-vst'];
 const sourceEqualityCheck = ['UI', 'plugins'];
+const gitAddAllowList = {
+    all: ['AUTHORS', 'UI/data/locale/*-*.ini', 'plugins/*/data/locale/*-*.ini', 'plugins/mac-virtualcam/src/obs-plugin/data/locale/*-*.ini', 'UI/data/locale.ini', 'UI/xdg-data/com.obsproject.Studio.desktop'],
+    'enc-amf': 'plugins/enc-amf/resources/locale/*-*.ini',
+    'obs-browser': 'plugins/obs-browser/data/locale/*-*.ini',
+    'obs-vst': 'plugins/obs-vst/data/locale/*-*.ini'
+};
 const promisesLimit = 10;
 //# sourceMappingURL=constants.js.map
 ;// CONCATENATED MODULE: ./out/download/src/strings.js
@@ -14679,12 +14685,14 @@ function pushChanges(detachedSubmodules) {
             process.chdir('../..');
             continue;
         }
-        execute('git add .');
+        execute(`git add '${gitAddAllowList[submodule]}'`);
         execute(`git commit -m '${src_strings.git.commitTitle}'`);
         execute('git push');
         process.chdir('../..');
     }
-    execute('git add .');
+    for (const path of gitAddAllowList.all) {
+        execute(`git add '${path}'`);
+    }
     for (const submodule of detachedSubmodules) {
         core.info(`${submodule} has commits not pushed to the main repository. Only pushing to submodule.`);
         execute(`git checkout HEAD -- plugins/${submodule}`);
