@@ -14329,9 +14329,9 @@ const submodules = ['enc-amf', 'obs-browser', 'obs-vst'];
 const sourceEqualityCheck = ['UI', 'plugins'];
 const gitAddAllowList = {
     all: ['AUTHORS', 'UI/data/locale/*-*.ini', 'plugins/*/data/locale/*-*.ini', 'plugins/mac-virtualcam/src/obs-plugin/data/locale/*-*.ini', 'UI/data/locale.ini', 'UI/xdg-data/com.obsproject.Studio.desktop'],
-    'enc-amf': 'plugins/enc-amf/resources/locale/*-*.ini',
-    'obs-browser': 'plugins/obs-browser/data/locale/*-*.ini',
-    'obs-vst': 'plugins/obs-vst/data/locale/*-*.ini'
+    'enc-amf': 'resources/locale/*-*.ini',
+    'obs-browser': 'data/locale/*-*.ini',
+    'obs-vst': 'data/locale/*-*.ini'
 };
 const promisesLimit = 10;
 //# sourceMappingURL=constants.js.map
@@ -14692,6 +14692,9 @@ function pushChanges(detachedSubmodules) {
     }
     for (const path of gitAddAllowList.all) {
         execute(`git add '${path}'`);
+    }
+    for (const submodule of submodules) {
+        execute(`git add plugins/${submodule}`);
     }
     for (const submodule of detachedSubmodules) {
         core.info(`${submodule} has commits not pushed to the main repository. Only pushing to submodule.`);

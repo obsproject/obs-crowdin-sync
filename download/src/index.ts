@@ -441,6 +441,9 @@ function pushChanges(detachedSubmodules: string[]): void {
 	for (const path of gitAddAllowList.all) {
 		execute(`git add '${path}'`);
 	}
+	for (const submodule of submodules) {
+		execute(`git add plugins/${submodule}`);
+	}
 	for (const submodule of detachedSubmodules) {
 		core.info(`${submodule} has commits not pushed to the main repository. Only pushing to submodule.`);
 		execute(`git checkout HEAD -- plugins/${submodule}`);
