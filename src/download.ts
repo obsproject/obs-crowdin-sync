@@ -1,26 +1,18 @@
-import axios from 'axios';
-import * as path from 'path';
-import * as fse from 'fs-extra';
-import * as Zip from 'adm-zip';
-import * as core from '@actions/core';
-import plimit from 'p-limit';
-import Crowdin, { ReportsModel, UsersModel } from '@crowdin/crowdin-api-client';
+import AXIOS from 'axios';
+import ZIP from 'adm-zip';
+import PLIMIT from 'p-limit';
+import PATH from 'path';
+import FSE from 'fs-extra';
+import CROWDIN, { ReportsModel, UsersModel } from '@crowdin/crowdin-api-client';
+import * as ACTION from '@actions/core';
 
-import { wait, execute, normalize } from '../../shared/utils';
-import { projectId, submodules, sourceEqualityCheck, promisesLimit, gitAddAllowList } from '../../shared/constants';
-import { LanguagesGatheringResult, BuildProcessingResult } from './interfaces';
-import strings from './strings';
+import STRINGS from './strings';
+import { wait, exec, normalize } from './utils';
+import { projectId, submodules, sourceEqualityCheck, gitAddAllowList } from './constants';
 
-const { reportsApi, translationsApi, usersApi, projectsGroupsApi, sourceFilesApi, sourceStringsApi, translationStatusApi } = new Crowdin({
+const { reportsApi, translationsApi, usersApi, projectsGroupsApi, sourceFilesApi, sourceStringsApi, translationStatusApi } = new CROWDIN({
 	token: process.env.CROWDIN_PAT!
 });
-
-/*
-Crowdin's JavaScript client doesn't perfectly limit the amount of
-concurrently executed requests which sometimes results in a failure.
-This definitely slows everything down, but ensures a completion.
-*/
-const requestLimit = plimit(promisesLimit);
 
 /**
  * Clears a directory excluding the default language files.
@@ -28,9 +20,9 @@ const requestLimit = plimit(promisesLimit);
  * @param dirPath Directory to clear.
  */
 function emptyTranslationDir(dirPath: string): void {
-	for (const file of fse.readdirSync(dirPath)) {
-		if (file !== `${strings.language.locale}.ini`) {
-			fse.removeSync(path.join(dirPath, file));
+	for (const file of FSE.readdirSync(dirPath)) {
+		if (file !== `${STRINGS.language.locale}.ini`) {
+			FSE.removeSync(PATH.join(dirPath, file));
 		}
 	}
 }
@@ -39,12 +31,11 @@ function emptyTranslationDir(dirPath: string): void {
  * Remove all translations to prevent keeping dropped languages.
  */
 function removePreviousTranslations(): void {
-	core.info('Removing previous translations.');
-	emptyTranslationDir(path.join('UI', 'data', 'locale'));
-	emptyTranslationDir(path.join('plugins', 'enc-amf', 'resources', 'locale'));
-	for (const file of fse.readdirSync('plugins')) {
-		const dirPath = path.join('plugins', file, 'data', 'locale');
-		if (fse.existsSync(dirPath) && fse.lstatSync(dirPath).isDirectory()) {
+	emptyTranslationDir(PATH.join('UI', 'data', 'locale'));
+	emptyTranslationDir(PATH.join('plugins', 'enc-amf', 'resources', 'locale'));
+	for (const file of FSE.readdirSync('plugins')) {
+		const dirPath = PATH.join('plugins', file, 'data', 'locale');
+		if (FSE.existsSync(dirPath) && FSE.lstatSync(dirPath).isDirectory()) {
 			emptyTranslationDir(dirPath);
 		}
 	}
@@ -56,14 +47,13 @@ function removePreviousTranslations(): void {
  * @returns List of detached submodules in the repository.
  */
 function prepareBuildProcessing(): string[] {
-	core.info('Preparing project build.');
 	const detachedSubmodules: string[] = [];
 	for (const submodule of submodules) {
-		process.chdir(path.join('plugins', submodule));
-		if (execute('git diff master HEAD').length !== 0) {
+		process.chdir(PATH.join('plugins', submodule));
+		if (exec('git diff master HEAD').length !== 0) {
 			detachedSubmodules.push(submodule);
 		}
-		execute('git checkout master');
+		exec('git checkout master');
 		process.chdir('../..');
 	}
 	return detachedSubmodules;
@@ -74,9 +64,13 @@ function prepareBuildProcessing(): string[] {
  *
  * @returns File ids mapped to their export path.
  */
-async function getFilePaths(): Promise<Map<number, string>> {
+export async function getFilePaths(): Promise<Map<number, string>> {
 	const filePaths = new Map<number, string>();
-	for (const { data: file } of (await sourceFilesApi.listProjectFiles(projectId, { limit: 500 })).data) {
+	for (const { data: file } of (
+		await sourceFilesApi.listProjectFiles(projectId, {
+			limit: 500
+		})
+	).data) {
 		const fileName = file.name;
 		const exportPattern = file.exportOptions.exportPattern.replace('%file_name%', fileName.substring(0, fileName.indexOf('.')));
 		filePaths.set(file.id, exportPattern.substring(1, exportPattern.lastIndexOf('/')));
@@ -85,24 +79,32 @@ async function getFilePaths(): Promise<Map<number, string>> {
 }
 
 /**
- * Downloads all project source files and maps their strings.
+ * Maps source file ids to source string keys and source text.
  *
  * @param filePaths File ids mapped to their export path.
- * @returns Source files mapped to source string keys and their source text.
+ * @returns Source file ids mapped to source string keys and source text.
  */
-async function getSourceStrings(filePaths: Map<number, string>): Promise<Map<number, Map<string, string>>> {
+export async function getSourceFiles(filePaths: Map<number, string>): Promise<Map<number, Map<string, string>>> {
 	const sourceFiles = new Map<number, Map<string, string>>();
 	let offset = 0;
 	let currentFileId;
 	let currentFileStrings: Map<string, string> | undefined;
 	while (true) {
-		const data = (await sourceStringsApi.listProjectStrings(projectId, { limit: 500, offset: offset })).data;
+		const data = (
+			await sourceStringsApi.listProjectStrings(projectId, {
+				limit: 500,
+				offset: offset
+			})
+		).data;
 		if (data.length === 0) {
 			break;
 		}
 		for (const { data: string } of data) {
 			const fileId = string.fileId;
-			if (filePaths.has(fileId) && !sourceEqualityCheck.includes(filePaths.get(fileId)!.substring(0, filePaths.get(fileId)!.indexOf('/')))) {
+			if (
+				filePaths.has(fileId) &&
+				!sourceEqualityCheck.includes(filePaths.get(fileId)!.substring(0, filePaths.get(fileId)!.indexOf('/')))
+			) {
 				continue;
 			}
 			if (fileId !== currentFileId) {
@@ -132,8 +134,7 @@ async function getSourceStrings(filePaths: Map<number, string>): Promise<Map<num
  * @param translators Output of getTranslators()
  */
 function generateAuthors(gitContributors: string, translators: string): void {
-	core.info('AUTHORS file.');
-	fse.writeFileSync(strings.authors.fileName, `${strings.authors.header}${gitContributors}${translators}`);
+	FSE.writeFileSync(STRINGS.authors.fileName, `${STRINGS.authors.header}${gitContributors}${translators}`);
 }
 
 /**
@@ -142,16 +143,17 @@ function generateAuthors(gitContributors: string, translators: string): void {
  * @returns List of contributors, with heading
  */
 function getGitContributors(): string {
-	core.info('Getting Git contributors.');
-	let output = `${strings.authors.contributors}:\n`;
-	for (const line of execute('git shortlog --all -sn --no-merges').split('\n')) {
+	let output = `${STRINGS.authors.contributors}:\n`;
+	for (const line of exec('git shortlog --all -sn --no-merges').split('\n')) {
 		const contributor = line.substring(line.indexOf('\t') + 1);
-		if (contributor !== strings.git.committer.name) {
+		if (contributor !== STRINGS.git.committer.name) {
 			output += ` ${contributor}\n`;
 		}
 	}
 	return output;
 }
+
+const requestLimit = PLIMIT(10);
 
 /**
  * Gets all translators from the Crowdin project.
@@ -159,40 +161,40 @@ function getGitContributors(): string {
  * @param targetLanguageIds List of project target language ids.
  * @returns List of translators, with heading.
  */
-async function getTranslators(targetLanguageIds: string[]): Promise<string> {
-	core.info('Getting translators.');
+export async function getTranslators(targetLanguageIds: string[]): Promise<string> {
 	// blocked users
 	const blockedUsers: number[] = [];
-	for (const { data: blockedUser } of (await usersApi.listProjectMembers(projectId, undefined, UsersModel.Role.BLOCKED, undefined, 500)).data) {
+	for (const { data: blockedUser } of (await usersApi.listProjectMembers(projectId, undefined, UsersModel.Role.BLOCKED, undefined, 500))
+		.data) {
 		blockedUsers.push(blockedUser.id);
 	}
 	// report
 	const requests = [];
 	for (const languageId of targetLanguageIds) {
-		/**
-		 * @returns Crowdin top members report request
-		 */
-		async function request(): Promise<any> {
-			const { status: reportStatus, identifier: reportId } = (
-				await reportsApi.generateReport(projectId, {
-					name: 'top-members',
-					schema: {
-						unit: ReportsModel.Unit.WORDS,
-						format: ReportsModel.Format.JSON,
-						dateFrom: '2014-01-01T00:00:00+00:00',
-						dateTo: '2030-01-01T00:00:00+00:00',
-						languageId
+		requests.push(
+			requestLimit(() =>
+				(async () => {
+					const { status: reportStatus, identifier: reportId } = (
+						await reportsApi.generateReport(projectId, {
+							name: 'top-members',
+							schema: {
+								unit: ReportsModel.Unit.WORDS,
+								format: ReportsModel.Format.JSON,
+								dateFrom: '2014-01-01T00:00:00+00:00',
+								dateTo: '2030-01-01T00:00:00+00:00',
+								languageId
+							}
+						})
+					).data;
+					let finished = reportStatus === 'finished';
+					while (!finished) {
+						await wait(3000);
+						finished = (await reportsApi.checkReportStatus(projectId, reportId)).data.status === 'finished';
 					}
-				})
-			).data;
-			let finished = reportStatus === 'finished';
-			while (!finished) {
-				await wait(3000);
-				finished = (await reportsApi.checkReportStatus(projectId, reportId)).data.status === 'finished';
-			}
-			return (await axios.get((await reportsApi.downloadReport(projectId, reportId)).data.url)).data;
-		}
-		requests.push(requestLimit(() => request()));
+					return (await AXIOS.get((await reportsApi.downloadReport(projectId, reportId)).data.url)).data;
+				})()
+			)
+		);
 	}
 
 	const topMembers = new Map<string, string[]>();
@@ -221,7 +223,7 @@ async function getTranslators(targetLanguageIds: string[]): Promise<string> {
 		topMembers.set(languageName, members);
 	}
 
-	let output = `${strings.authors.translators}:\n`;
+	let output = `${STRINGS.authors.translators}:\n`;
 	for (const language of new Map([...topMembers].sort((a, b) => String(a[0]).localeCompare(b[0]))).keys()) {
 		output += ` ${language}:\n`;
 		for (const user of topMembers.get(language)!) {
@@ -236,15 +238,18 @@ async function getTranslators(targetLanguageIds: string[]): Promise<string> {
  *
  * @returns The build id.
  */
-async function buildProject(): Promise<number> {
-	core.info('Building Crowdin project.');
-	if (process.env.CROWDIN_SYNC_SKIP_BUILD) { // download newest build when testing
+export async function buildProject(): Promise<number> {
+	if (process.env.CROWDIN_SYNC_SKIP_BUILD) {
 		const { id, status } = (await translationsApi.listProjectBuilds(projectId, undefined, 1)).data[0].data;
 		if (status === 'finished') {
 			return id;
 		}
 	}
-	const { id, status } = (await translationsApi.buildProject(projectId, { skipUntranslatedStrings: true })).data;
+	const { id, status } = (
+		await translationsApi.buildProject(projectId, {
+			skipUntranslatedStrings: true
+		})
+	).data;
 	let finished = status === 'finished';
 	while (!finished) {
 		await wait(5000);
@@ -256,15 +261,21 @@ async function buildProject(): Promise<number> {
 /**
  * Executes multiple language-related operations.
  *
- * @returns A `LanguagesGatheringResult` object containing the properties `targetLanguageIds` and `languageCodeMap`.
+ * @returns An object containing the properties `targetLanguageIds` and `languageCodeMap`.
  */
-async function getLanguages(): Promise<LanguagesGatheringResult> {
+export async function getLanguages(): Promise<{
+	targetLanguageIds: string[];
+	languageCodeMap: Map<string, string>;
+}> {
 	const projectData = (await projectsGroupsApi.getProject(projectId)).data;
 	const languageCodeMap = new Map<string, string>(); // <locale, languageId>
 	for (const language of projectData.targetLanguages) {
 		languageCodeMap.set(language.locale, language.id);
 	}
-	return { languageCodeMap, targetLanguageIds: projectData.targetLanguageIds };
+	return {
+		languageCodeMap,
+		targetLanguageIds: projectData.targetLanguageIds
+	};
 }
 
 /**
@@ -273,10 +284,16 @@ async function getLanguages(): Promise<LanguagesGatheringResult> {
  * @param buildId Build id.
  * @param sourceFiles Source files mapped to source string keys and their source text.
  * @param filePaths File ids mapped to their export path.
- * @returns A `processBuildResult` object containing the properties `desktopFileTranslations` and `languageList`.
+ * @returns An object containing the properties `desktopFileTranslations` and `languageList`.
  */
-async function processBuild(buildId: number, sourceFiles: Map<number, Map<string, string>>, filePaths: Map<number, string>): Promise<BuildProcessingResult> {
-	core.info('Processing build.');
+export async function processBuild(
+	buildId: number,
+	sourceFiles: Map<number, Map<string, string>>,
+	filePaths: Map<number, string>
+): Promise<{
+	desktopFileTranslations: Map<string, Map<string, string>>;
+	languageList: Map<string, string>;
+}> {
 	const translatedSourceMap = new Map<string, Map<string, string>>(); // <filePath, <stringKey, stringText>> Paths mapped to source strings insteaad of file ids.
 	for (const key of sourceFiles.keys()) {
 		if (filePaths.has(key)) {
@@ -284,14 +301,14 @@ async function processBuild(buildId: number, sourceFiles: Map<number, Map<string
 		}
 	}
 	// Download build.
-	const zipFile = new Zip(
-		(await axios.get((await translationsApi.downloadTranslations(projectId, buildId)).data.url, { responseType: 'arraybuffer' })).data
+	const zipFile = new ZIP(
+		(await AXIOS.get((await translationsApi.downloadTranslations(projectId, buildId)).data.url, { responseType: 'arraybuffer' })).data
 	);
 	const desktopFileTranslations = new Map<string, Map<string, string>>(); // <locale, <stringKey, translation>>
 	const languageList = new Map<string, string>(); // <locale, localeLanguageName>
 	for (const zipEntry of zipFile.getEntries()) {
 		const entryFullPath = zipEntry.entryName;
-		const { dir: entryDir, name: entryName } = path.parse(entryFullPath);
+		const { dir: entryDir, name: entryName } = PATH.parse(entryFullPath);
 		if (entryDir === 'Website') {
 			continue;
 		}
@@ -299,7 +316,7 @@ async function processBuild(buildId: number, sourceFiles: Map<number, Map<string
 		if (fileContent.length === 0) {
 			continue;
 		}
-		// Replace line breaks with \n, as OBS only supports one-line translations.
+		// Replace line breaks with \n, as OBS only supports on-line translations.
 		let fixedLineBreaks = '';
 		for (const line of fileContent.trimEnd().split('\n')) {
 			if (line.includes('="') && line.indexOf('="') !== line.length - 2) {
@@ -343,9 +360,12 @@ async function processBuild(buildId: number, sourceFiles: Map<number, Map<string
 		} else {
 			translationContent = `${fileContent}\n`;
 		}
-		fse.writeFileSync(entryFullPath, translationContent);
+		await FSE.writeFile(entryFullPath, translationContent);
 	}
-	return { desktopFileTranslations: new Map([...desktopFileTranslations].sort((a, b) => String(a[0]).localeCompare(b[0]))), languageList };
+	return {
+		desktopFileTranslations: new Map([...desktopFileTranslations].sort((a, b) => String(a[0]).localeCompare(b[0]))),
+		languageList
+	};
 }
 
 /**
@@ -353,10 +373,9 @@ async function processBuild(buildId: number, sourceFiles: Map<number, Map<string
  *
  * @param languageFiles Locales mapped to their desktop file translations.
  */
-function desktopFile(languageFiles: Map<string, Map<string, string>>): void {
-	core.info('UI/xdg-data/com.obsproject.Studio.desktop');
-	const filePath = path.join('UI', 'xdg-data', 'com.obsproject.Studio.desktop');
-	const desktopFile = normalize(fse.readFileSync(filePath, 'utf-8'));
+export async function desktopFile(languageFiles: Map<string, Map<string, string>>): Promise<void> {
+	const filePath = PATH.join('UI', 'xdg-data', 'com.obsproject.Studio.desktop');
+	const desktopFile = normalize(await FSE.readFile(filePath, 'utf-8'));
 	let result = '';
 	for (const line of desktopFile.split('\n')) {
 		if (line.length === 0) {
@@ -372,7 +391,7 @@ function desktopFile(languageFiles: Map<string, Map<string, string>>): void {
 			result += `${translation[0]}[${language[0]}]=${translation[1]}\n`;
 		}
 	}
-	fse.writeFileSync(filePath, result);
+	await FSE.writeFile(filePath, result);
 }
 
 /**
@@ -381,16 +400,15 @@ function desktopFile(languageFiles: Map<string, Map<string, string>>): void {
  * @param languageList Locales mapped to their locale language name.
  * @param languageCodeMap Locales mapped to their language id.
  */
-async function languagesFile(languageList: Map<string, string>, languageCodeMap: Map<string, string>): Promise<void> {
-	core.info('UI/data/locale.ini');
+export async function localeFile(languageList: Map<string, string>, languageCodeMap: Map<string, string>): Promise<void> {
 	const progressMap = new Map<string, number>(); // <languageId, translationProgress>
 	for (const { data: language } of (await translationStatusApi.getProjectProgress(projectId, 500)).data) {
 		progressMap.set(language.languageId, language.translationProgress);
 	}
 	const languagesInList = [];
-	const languagueListPath = path.join('UI', 'data', 'locale.ini');
-	for (const line of normalize(fse.readFileSync(languagueListPath, 'utf-8')).split('\n')) {
-		if (line.startsWith('[') && line !== `[${strings.language.locale}]`) {
+	const languagueListPath = PATH.join('UI', 'data', 'locale.ini');
+	for (const line of normalize(FSE.readFileSync(languagueListPath, 'utf-8')).split('\n')) {
+		if (line.startsWith('[') && line !== `[${STRINGS.language.locale}]`) {
 			languagesInList.push(line.substring(1, line.length - 1));
 		}
 	}
@@ -403,17 +421,19 @@ async function languagesFile(languageList: Map<string, string>, languageCodeMap:
 			}
 		}
 	}
-	finalLanguages.push(strings.language.locale);
-	languageList.set(strings.language.locale, strings.language.name);
+	finalLanguages.push(STRINGS.language.locale);
+	languageList.set(STRINGS.language.locale, STRINGS.language.name);
 	let result = '';
 	for (const locale of finalLanguages.sort()) {
 		if (languageList.has(locale)) {
 			result += `[${locale}]\nName=${languageList.get(locale)}\n\n`;
 		} else {
-			core.error(`${locale} was supposed to be included but is missing the language name ('Language' string in 'Main Application' file).`);
+			ACTION.error(
+				`${locale} was supposed to be included but is missing the language name ('Language' string in 'Main Application' file).`
+			);
 		}
 	}
-	fse.writeFileSync(languagueListPath, `${result.trimEnd()}\n`);
+	await FSE.writeFile(languagueListPath, `${result.trimEnd()}\n`);
 }
 /**
  * Pushes all changes to the submodules and the main repository.
@@ -424,51 +444,56 @@ function pushChanges(detachedSubmodules: string[]): void {
 	if (process.env.CROWDIN_SYNC_SKIP_PUSH) {
 		return;
 	}
-	core.info('Pushing changes.');
-	execute(`git config --global user.name '${strings.git.committer.name}'`);
-	execute(`git config --global user.email '${strings.git.committer.email}'`);
+	ACTION.info('Pushing translation and author changes.');
+	exec(`git config --global user.name '${STRINGS.git.committer.name}'`);
+	exec(`git config --global user.email '${STRINGS.git.committer.email}'`);
 	for (const submodule of submodules) {
-		process.chdir(path.join('plugins', submodule));
-		if (execute('git status --porcelain').length === 0) {
+		process.chdir(PATH.join('plugins', submodule));
+		if (exec('git status --porcelain').length === 0) {
 			process.chdir('../..');
 			continue;
 		}
-		execute(`git add '${gitAddAllowList[submodule]}'`);
-		execute(`git commit -m '${strings.git.commitTitle}'`);
-		execute('git push');
+		exec(`git add '${gitAddAllowList[submodule]}'`);
+		exec(`git commit -m '${STRINGS.git.commitTitle}'`);
+		exec('git push');
 		process.chdir('../..');
 	}
 	for (const path of gitAddAllowList.all) {
-		execute(`git add '${path}'`);
+		exec(`git add '${path}'`);
 	}
 	for (const submodule of submodules) {
-		execute(`git add plugins/${submodule}`);
+		exec(`git add plugins/${submodule}`);
 	}
 	for (const submodule of detachedSubmodules) {
-		core.info(`${submodule} has commits not pushed to the main repository. Only pushing to submodule.`);
-		execute(`git checkout HEAD -- plugins/${submodule}`);
-		execute(`git submodule update --init plugins/${submodule}`);
+		ACTION.info(`${submodule} has commits not pushed to the main repository. Only pushing to submodule.`);
+		exec(`git checkout HEAD -- plugins/${submodule}`);
+		exec(`git submodule update --init plugins/${submodule}`);
 	}
-	if (execute('git status --porcelain').length === 0) {
-		core.info('No changes in main repository. Skipping push.');
+	if (exec('git status --porcelain').length === 0) {
+		ACTION.info('No changes in main repository. Skipping push.');
 		return;
 	}
-	execute(`git commit -m '${strings.git.commitTitle}'`);
-	execute('git push');
+	exec(`git commit -m '${STRINGS.git.commitTitle}'`);
+	exec('git push');
 }
 
 // Executes steps simultaneously where possible.
-(async() => {
+(async () => {
+	if (process.env.JEST_WORKER_ID !== undefined) {
+		return;
+	}
 	try {
 		removePreviousTranslations();
 		const results = [];
 		results[0] = await Promise.all([prepareBuildProcessing(), await getFilePaths(), await buildProject(), await getLanguages()]);
-		results[1] = await Promise.all([generateAuthors(getGitContributors(), await getTranslators(results[0][3].targetLanguageIds)), await processBuild(results[0][2], await getSourceStrings(results[0][1]), results[0][1])]);
-		await languagesFile(results[1][1].languageList, results[0][3].languageCodeMap);
+		results[1] = await Promise.all([
+			generateAuthors(getGitContributors(), await getTranslators(results[0][3].targetLanguageIds)),
+			await processBuild(results[0][2], await getSourceFiles(results[0][1]), results[0][1])
+		]);
+		await localeFile(results[1][1].languageList, results[0][3].languageCodeMap);
 		desktopFile(results[1][1].desktopFileTranslations);
 		pushChanges(results[0][0]);
-	} catch (error) {
-		console.error(error);
-		core.setFailed(error);
+	} catch (e) {
+		ACTION.setFailed(e as Error);
 	}
 })();

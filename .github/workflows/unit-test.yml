@@ -1,0 +1,15 @@
+name: Unit Test
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: 16
+      - name: Install
+        run: npm ci
+      - name: Run Tests
+        run: npm run test

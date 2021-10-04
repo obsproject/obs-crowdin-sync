@@ -1,40 +1,51 @@
 {
-	"name": "obs-crowdin-sync",
 	"version": "0.1.0",
 	"private": true,
 	"bugs": "https://github.com/obsproject/crowdin-synchronization/issues",
 	"license": "GPL-3.0-or-later",
 	"scripts": {
-		"build": "removeNPMAbsolutePaths node_modules && cd download && tsc && ncc build out/download/src/index.js && cd ../upload && tsc && ncc build out/upload/src/index.js",
-		"lint": "eslint --fix {download,upload}/src/** shared/**"
+		"build": "removeNPMAbsolutePaths node_modules && ncc build src/download.ts && move dist\\index.js dist\\download.mjs && ncc build src/upload.ts && move dist\\index.js dist\\upload.mjs && del dist\\package.json",
+		"lint": "eslint --fix src/**",
+		"check-format": "eslint --max-warnings 0 src/**",
+		"test": "jest"
 	},
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/obsproject/crowdin-synchronization.git"
 	},
+	"type": "module",
 	"dependencies": {
-		"@actions/core": "^1.4.0",
+		"@actions/core": "^1.6.0",
 		"@crowdin/crowdin-api-client": "^1.12.3",
 		"adm-zip": "^0.5.9",
-		"axios": "^0.21.1",
+		"axios": "^0.24.0",
 		"fs-extra": "^10.0.0",
 		"p-limit": "^4.0.0"
 	},
 	"devDependencies": {
+		"@babel/plugin-transform-modules-commonjs": "^7.15.4",
+		"@babel/preset-env": "^7.15.8",
 		"@types/adm-zip": "^0.4.34",
 		"@types/fs-extra": "^9.0.13",
-		"@types/node": "^16.11.4",
-		"@typescript-eslint/eslint-plugin": "^4.29.0",
-		"@typescript-eslint/parser": "^4.29.0",
+		"@types/jest": "^27.0.2",
+		"@types/node": "^16.11.6",
+		"@typescript-eslint/eslint-plugin": "^5.2.0",
+		"@typescript-eslint/parser": "^5.2.0",
 		"@vercel/ncc": "^0.31.1",
-		"eslint": "^7.32.0",
-		"eslint-config-standard": "^16.0.3",
-		"eslint-plugin-import": "^2.25.0",
-		"eslint-plugin-jsdoc": "^37.0.0",
+		"babel-jest": "^27.3.1",
+		"eslint": "^8.1.0",
+		"eslint-config-prettier": "^8.3.0",
+		"eslint-plugin-import": "^2.25.2",
+		"eslint-plugin-jsdoc": "^37.0.3",
 		"eslint-plugin-node": "^11.1.0",
 		"eslint-plugin-only-warn": "^1.0.3",
+		"eslint-plugin-prettier": "^4.0.0",
 		"eslint-plugin-promise": "^5.1.1",
+		"jest": "^27.3.1",
+		"nock": "^13.1.4",
+		"prettier": "^2.4.1",
 		"removeNPMAbsolutePaths": "^2.0.0",
-		"typescript": "^4.3.5"
+		"ts-jest": "^27.0.7",
+		"typescript": "^4.4.4"
 	}
 }

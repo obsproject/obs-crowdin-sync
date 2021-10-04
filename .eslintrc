@@ -1,21 +1,20 @@
 {
 	"env": {
-		"commonjs": true,
 		"node": true,
-		"es2020": true
+		"es2020": true,
+		"jest": true
 	},
-	"extends": ["standard", "plugin:jsdoc/recommended"],
+	"extends": ["plugin:jsdoc/recommended", "plugin:prettier/recommended"],
 	"parser": "@typescript-eslint/parser",
 	"parserOptions": {
-		"ecmaVersion": 2020,
 		"sourceType": "module"
 	},
 	"plugins": ["@typescript-eslint", "jsdoc", "only-warn"],
 	"rules": {
-		"indent": ["error", "tab"],
+		"indent": ["warn", "tab", { "SwitchCase": 1 }],
 		"no-tabs": "off",
-		"semi": ["error", "always"],
-		"space-before-function-paren": ["error", "never"],
+		"semi": "off",
+		"space-before-function-paren": "off",
 		"jsdoc/require-param-type": "off",
 		"jsdoc/require-returns-type": "off"
 	}
