@@ -1,5 +1,0 @@
-name: "crowdin-synchronization-download"
-description: "Updates the translations in the OBS Studio repository."
-runs:
-  using: "node12"
-  main: "dist/index.js"
