@@ -1,6 +1,14 @@
 /******/ (() => { // webpackBootstrap
 /******/ 	var __webpack_modules__ = ({
 
+/***/ 222:
+/***/ ((module) => {
+
+"use strict";
+module.exports = JSON.parse('{"name":"axios","version":"0.21.3","description":"Promise based HTTP client for the browser and node.js","main":"index.js","scripts":{"test":"grunt test","start":"node ./sandbox/server.js","build":"NODE_ENV=production grunt build","preversion":"npm test","version":"npm run build && grunt version && git add -A dist && git add CHANGELOG.md bower.json package.json","postversion":"git push && git push --tags","examples":"node ./examples/server.js","coveralls":"cat coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js","fix":"eslint --fix lib/**/*.js"},"repository":{"type":"git","url":"https://github.com/axios/axios.git"},"keywords":["xhr","http","ajax","promise","node"],"author":"Matt Zabriskie","license":"MIT","bugs":{"url":"https://github.com/axios/axios/issues"},"homepage":"https://axios-http.com","devDependencies":{"coveralls":"^3.0.0","es6-promise":"^4.2.4","grunt":"^1.3.0","grunt-banner":"^0.6.0","grunt-cli":"^1.2.0","grunt-contrib-clean":"^1.1.0","grunt-contrib-watch":"^1.0.0","grunt-eslint":"^23.0.0","grunt-karma":"^4.0.0","grunt-mocha-test":"^0.13.3","grunt-ts":"^6.0.0-beta.19","grunt-webpack":"^4.0.2","istanbul-instrumenter-loader":"^1.0.0","jasmine-core":"^2.4.1","karma":"^6.3.2","karma-chrome-launcher":"^3.1.0","karma-firefox-launcher":"^2.1.0","karma-jasmine":"^1.1.1","karma-jasmine-ajax":"^0.1.13","karma-safari-launcher":"^1.0.0","karma-sauce-launcher":"^4.3.6","karma-sinon":"^1.0.5","karma-sourcemap-loader":"^0.3.8","karma-webpack":"^4.0.2","load-grunt-tasks":"^3.5.2","minimist":"^1.2.0","mocha":"^8.2.1","sinon":"^4.5.0","terser-webpack-plugin":"^4.2.3","typescript":"^4.0.5","url-search-params":"^0.10.0","webpack":"^4.44.2","webpack-dev-server":"^3.11.0"},"browser":{"./lib/adapters/http.js":"./lib/adapters/xhr.js"},"jsdelivr":"dist/axios.min.js","unpkg":"dist/axios.min.js","typings":"./index.d.ts","dependencies":{"follow-redirects":"^1.14.0"},"bundlesize":[{"path":"./dist/axios.min.js","threshold":"5kB"}]}');
+
+/***/ }),
+
 /***/ 9190:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -477,6 +485,2298 @@ exports.toCommandValue = toCommandValue;
 
 /***/ }),
 
+/***/ 8675:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+module.exports = __nccwpck_require__(1758);
+
+/***/ }),
+
+/***/ 580:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var utils = __nccwpck_require__(2618);
+var settle = __nccwpck_require__(1917);
+var buildFullPath = __nccwpck_require__(9750);
+var buildURL = __nccwpck_require__(2694);
+var http = __nccwpck_require__(8605);
+var https = __nccwpck_require__(7211);
+var httpFollow = __nccwpck_require__(6170).http;
+var httpsFollow = __nccwpck_require__(6170).https;
+var url = __nccwpck_require__(8835);
+var zlib = __nccwpck_require__(8761);
+var pkg = __nccwpck_require__(222);
+var createError = __nccwpck_require__(5685);
+var enhanceError = __nccwpck_require__(4420);
+
+var isHttps = /https:?/;
+
+/**
+ *
+ * @param {http.ClientRequestArgs} options
+ * @param {AxiosProxyConfig} proxy
+ * @param {string} location
+ */
+function setProxy(options, proxy, location) {
+  options.hostname = proxy.host;
+  options.host = proxy.host;
+  options.port = proxy.port;
+  options.path = location;
+
+  // Basic proxy authorization
+  if (proxy.auth) {
+    var base64 = Buffer.from(proxy.auth.username + ':' + proxy.auth.password, 'utf8').toString('base64');
+    options.headers['Proxy-Authorization'] = 'Basic ' + base64;
+  }
+
+  // If a proxy is used, any redirects must also pass through the proxy
+  options.beforeRedirect = function beforeRedirect(redirection) {
+    redirection.headers.host = redirection.host;
+    setProxy(redirection, proxy, redirection.href);
+  };
+}
+
+/*eslint consistent-return:0*/
+module.exports = function httpAdapter(config) {
+  return new Promise(function dispatchHttpRequest(resolvePromise, rejectPromise) {
+    var resolve = function resolve(value) {
+      resolvePromise(value);
+    };
+    var reject = function reject(value) {
+      rejectPromise(value);
+    };
+    var data = config.data;
+    var headers = config.headers;
+
+    // Set User-Agent (required by some servers)
+    // See https://github.com/axios/axios/issues/69
+    if ('User-Agent' in headers || 'user-agent' in headers) {
+      // User-Agent is specified; handle case where no UA header is desired
+      if (!headers['User-Agent'] && !headers['user-agent']) {
+        delete headers['User-Agent'];
+        delete headers['user-agent'];
+      }
+      // Otherwise, use specified value
+    } else {
+      // Only set header if it hasn't been set in config
+      headers['User-Agent'] = 'axios/' + pkg.version;
+    }
+
+    if (data && !utils.isStream(data)) {
+      if (Buffer.isBuffer(data)) {
+        // Nothing to do...
+      } else if (utils.isArrayBuffer(data)) {
+        data = Buffer.from(new Uint8Array(data));
+      } else if (utils.isString(data)) {
+        data = Buffer.from(data, 'utf-8');
+      } else {
+        return reject(createError(
+          'Data after transformation must be a string, an ArrayBuffer, a Buffer, or a Stream',
+          config
+        ));
+      }
+
+      // Add Content-Length header if data exists
+      headers['Content-Length'] = data.length;
+    }
+
+    // HTTP basic authentication
+    var auth = undefined;
+    if (config.auth) {
+      var username = config.auth.username || '';
+      var password = config.auth.password || '';
+      auth = username + ':' + password;
+    }
+
+    // Parse url
+    var fullPath = buildFullPath(config.baseURL, config.url);
+    var parsed = url.parse(fullPath);
+    var protocol = parsed.protocol || 'http:';
+
+    if (!auth && parsed.auth) {
+      var urlAuth = parsed.auth.split(':');
+      var urlUsername = urlAuth[0] || '';
+      var urlPassword = urlAuth[1] || '';
+      auth = urlUsername + ':' + urlPassword;
+    }
+
+    if (auth) {
+      delete headers.Authorization;
+    }
+
+    var isHttpsRequest = isHttps.test(protocol);
+    var agent = isHttpsRequest ? config.httpsAgent : config.httpAgent;
+
+    var options = {
+      path: buildURL(parsed.path, config.params, config.paramsSerializer).replace(/^\?/, ''),
+      method: config.method.toUpperCase(),
+      headers: headers,
+      agent: agent,
+      agents: { http: config.httpAgent, https: config.httpsAgent },
+      auth: auth
+    };
+
+    if (config.socketPath) {
+      options.socketPath = config.socketPath;
+    } else {
+      options.hostname = parsed.hostname;
+      options.port = parsed.port;
+    }
+
+    var proxy = config.proxy;
+    if (!proxy && proxy !== false) {
+      var proxyEnv = protocol.slice(0, -1) + '_proxy';
+      var proxyUrl = process.env[proxyEnv] || process.env[proxyEnv.toUpperCase()];
+      if (proxyUrl) {
+        var parsedProxyUrl = url.parse(proxyUrl);
+        var noProxyEnv = process.env.no_proxy || process.env.NO_PROXY;
+        var shouldProxy = true;
+
+        if (noProxyEnv) {
+          var noProxy = noProxyEnv.split(',').map(function trim(s) {
+            return s.trim();
+          });
+
+          shouldProxy = !noProxy.some(function proxyMatch(proxyElement) {
+            if (!proxyElement) {
+              return false;
+            }
+            if (proxyElement === '*') {
+              return true;
+            }
+            if (proxyElement[0] === '.' &&
+                parsed.hostname.substr(parsed.hostname.length - proxyElement.length) === proxyElement) {
+              return true;
+            }
+
+            return parsed.hostname === proxyElement;
+          });
+        }
+
+        if (shouldProxy) {
+          proxy = {
+            host: parsedProxyUrl.hostname,
+            port: parsedProxyUrl.port,
+            protocol: parsedProxyUrl.protocol
+          };
+
+          if (parsedProxyUrl.auth) {
+            var proxyUrlAuth = parsedProxyUrl.auth.split(':');
+            proxy.auth = {
+              username: proxyUrlAuth[0],
+              password: proxyUrlAuth[1]
+            };
+          }
+        }
+      }
+    }
+
+    if (proxy) {
+      options.headers.host = parsed.hostname + (parsed.port ? ':' + parsed.port : '');
+      setProxy(options, proxy, protocol + '//' + parsed.hostname + (parsed.port ? ':' + parsed.port : '') + options.path);
+    }
+
+    var transport;
+    var isHttpsProxy = isHttpsRequest && (proxy ? isHttps.test(proxy.protocol) : true);
+    if (config.transport) {
+      transport = config.transport;
+    } else if (config.maxRedirects === 0) {
+      transport = isHttpsProxy ? https : http;
+    } else {
+      if (config.maxRedirects) {
+        options.maxRedirects = config.maxRedirects;
+      }
+      transport = isHttpsProxy ? httpsFollow : httpFollow;
+    }
+
+    if (config.maxBodyLength > -1) {
+      options.maxBodyLength = config.maxBodyLength;
+    }
+
+    // Create the request
+    var req = transport.request(options, function handleResponse(res) {
+      if (req.aborted) return;
+
+      // uncompress the response body transparently if required
+      var stream = res;
+
+      // return the last request in case of redirects
+      var lastRequest = res.req || req;
+
+
+      // if no content, is HEAD request or decompress disabled we should not decompress
+      if (res.statusCode !== 204 && lastRequest.method !== 'HEAD' && config.decompress !== false) {
+        switch (res.headers['content-encoding']) {
+        /*eslint default-case:0*/
+        case 'gzip':
+        case 'compress':
+        case 'deflate':
+        // add the unzipper to the body stream processing pipeline
+          stream = stream.pipe(zlib.createUnzip());
+
+          // remove the content-encoding in order to not confuse downstream operations
+          delete res.headers['content-encoding'];
+          break;
+        }
+      }
+
+      var response = {
+        status: res.statusCode,
+        statusText: res.statusMessage,
+        headers: res.headers,
+        config: config,
+        request: lastRequest
+      };
+
+      if (config.responseType === 'stream') {
+        response.data = stream;
+        settle(resolve, reject, response);
+      } else {
+        var responseBuffer = [];
+        var totalResponseBytes = 0;
+        stream.on('data', function handleStreamData(chunk) {
+          responseBuffer.push(chunk);
+          totalResponseBytes += chunk.length;
+
+          // make sure the content length is not over the maxContentLength if specified
+          if (config.maxContentLength > -1 && totalResponseBytes > config.maxContentLength) {
+            stream.destroy();
+            reject(createError('maxContentLength size of ' + config.maxContentLength + ' exceeded',
+              config, null, lastRequest));
+          }
+        });
+
+        stream.on('error', function handleStreamError(err) {
+          if (req.aborted) return;
+          reject(enhanceError(err, config, null, lastRequest));
+        });
+
+        stream.on('end', function handleStreamEnd() {
+          var responseData = Buffer.concat(responseBuffer);
+          if (config.responseType !== 'arraybuffer') {
+            responseData = responseData.toString(config.responseEncoding);
+            if (!config.responseEncoding || config.responseEncoding === 'utf8') {
+              responseData = utils.stripBOM(responseData);
+            }
+          }
+
+          response.data = responseData;
+          settle(resolve, reject, response);
+        });
+      }
+    });
+
+    // Handle errors
+    req.on('error', function handleRequestError(err) {
+      if (req.aborted && err.code !== 'ERR_FR_TOO_MANY_REDIRECTS') return;
+      reject(enhanceError(err, config, null, req));
+    });
+
+    // Handle request timeout
+    if (config.timeout) {
+      // This is forcing a int timeout to avoid problems if the `req` interface doesn't handle other types.
+      var timeout = parseInt(config.timeout, 10);
+
+      if (isNaN(timeout)) {
+        reject(createError(
+          'error trying to parse `config.timeout` to int',
+          config,
+          'ERR_PARSE_TIMEOUT',
+          req
+        ));
+
+        return;
+      }
+
+      // Sometime, the response will be very slow, and does not respond, the connect event will be block by event loop system.
+      // And timer callback will be fired, and abort() will be invoked before connection, then get "socket hang up" and code ECONNRESET.
+      // At this time, if we have a large number of request, nodejs will hang up some socket on background. and the number will up and up.
+      // And then these socket which be hang up will devoring CPU little by little.
+      // ClientRequest.setTimeout will be fired on the specify milliseconds, and can make sure that abort() will be fired after connect.
+      req.setTimeout(timeout, function handleRequestTimeout() {
+        req.abort();
+        reject(createError(
+          'timeout of ' + timeout + 'ms exceeded',
+          config,
+          config.transitional && config.transitional.clarifyTimeoutError ? 'ETIMEDOUT' : 'ECONNABORTED',
+          req
+        ));
+      });
+    }
+
+    if (config.cancelToken) {
+      // Handle cancellation
+      config.cancelToken.promise.then(function onCanceled(cancel) {
+        if (req.aborted) return;
+
+        req.abort();
+        reject(cancel);
+      });
+    }
+
+    // Send the request
+    if (utils.isStream(data)) {
+      data.on('error', function handleStreamError(err) {
+        reject(enhanceError(err, config, null, req));
+      }).pipe(req);
+    } else {
+      req.end(data);
+    }
+  });
+};
+
+
+/***/ }),
+
+/***/ 6767:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var utils = __nccwpck_require__(2618);
+var settle = __nccwpck_require__(1917);
+var cookies = __nccwpck_require__(883);
+var buildURL = __nccwpck_require__(2694);
+var buildFullPath = __nccwpck_require__(9750);
+var parseHeaders = __nccwpck_require__(7338);
+var isURLSameOrigin = __nccwpck_require__(1095);
+var createError = __nccwpck_require__(5685);
+
+module.exports = function xhrAdapter(config) {
+  return new Promise(function dispatchXhrRequest(resolve, reject) {
+    var requestData = config.data;
+    var requestHeaders = config.headers;
+    var responseType = config.responseType;
+
+    if (utils.isFormData(requestData)) {
+      delete requestHeaders['Content-Type']; // Let the browser set it
+    }
+
+    var request = new XMLHttpRequest();
+
+    // HTTP basic authentication
+    if (config.auth) {
+      var username = config.auth.username || '';
+      var password = config.auth.password ? unescape(encodeURIComponent(config.auth.password)) : '';
+      requestHeaders.Authorization = 'Basic ' + btoa(username + ':' + password);
+    }
+
+    var fullPath = buildFullPath(config.baseURL, config.url);
+    request.open(config.method.toUpperCase(), buildURL(fullPath, config.params, config.paramsSerializer), true);
+
+    // Set the request timeout in MS
+    request.timeout = config.timeout;
+
+    function onloadend() {
+      if (!request) {
+        return;
+      }
+      // Prepare the response
+      var responseHeaders = 'getAllResponseHeaders' in request ? parseHeaders(request.getAllResponseHeaders()) : null;
+      var responseData = !responseType || responseType === 'text' ||  responseType === 'json' ?
+        request.responseText : request.response;
+      var response = {
+        data: responseData,
+        status: request.status,
+        statusText: request.statusText,
+        headers: responseHeaders,
+        config: config,
+        request: request
+      };
+
+      settle(resolve, reject, response);
+
+      // Clean up request
+      request = null;
+    }
+
+    if ('onloadend' in request) {
+      // Use onloadend if available
+      request.onloadend = onloadend;
+    } else {
+      // Listen for ready state to emulate onloadend
+      request.onreadystatechange = function handleLoad() {
+        if (!request || request.readyState !== 4) {
+          return;
+        }
+
+        // The request errored out and we didn't get a response, this will be
+        // handled by onerror instead
+        // With one exception: request that using file: protocol, most browsers
+        // will return status as 0 even though it's a successful request
+        if (request.status === 0 && !(request.responseURL && request.responseURL.indexOf('file:') === 0)) {
+          return;
+        }
+        // readystate handler is calling before onerror or ontimeout handlers,
+        // so we should call onloadend on the next 'tick'
+        setTimeout(onloadend);
+      };
+    }
+
+    // Handle browser request cancellation (as opposed to a manual cancellation)
+    request.onabort = function handleAbort() {
+      if (!request) {
+        return;
+      }
+
+      reject(createError('Request aborted', config, 'ECONNABORTED', request));
+
+      // Clean up request
+      request = null;
+    };
+
+    // Handle low level network errors
+    request.onerror = function handleError() {
+      // Real errors are hidden from us by the browser
+      // onerror should only fire if it's a network error
+      reject(createError('Network Error', config, null, request));
+
+      // Clean up request
+      request = null;
+    };
+
+    // Handle timeout
+    request.ontimeout = function handleTimeout() {
+      var timeoutErrorMessage = 'timeout of ' + config.timeout + 'ms exceeded';
+      if (config.timeoutErrorMessage) {
+        timeoutErrorMessage = config.timeoutErrorMessage;
+      }
+      reject(createError(
+        timeoutErrorMessage,
+        config,
+        config.transitional && config.transitional.clarifyTimeoutError ? 'ETIMEDOUT' : 'ECONNABORTED',
+        request));
+
+      // Clean up request
+      request = null;
+    };
+
+    // Add xsrf header
+    // This is only done if running in a standard browser environment.
+    // Specifically not if we're in a web worker, or react-native.
+    if (utils.isStandardBrowserEnv()) {
+      // Add xsrf header
+      var xsrfValue = (config.withCredentials || isURLSameOrigin(fullPath)) && config.xsrfCookieName ?
+        cookies.read(config.xsrfCookieName) :
+        undefined;
+
+      if (xsrfValue) {
+        requestHeaders[config.xsrfHeaderName] = xsrfValue;
+      }
+    }
+
+    // Add headers to the request
+    if ('setRequestHeader' in request) {
+      utils.forEach(requestHeaders, function setRequestHeader(val, key) {
+        if (typeof requestData === 'undefined' && key.toLowerCase() === 'content-type') {
+          // Remove Content-Type if data is undefined
+          delete requestHeaders[key];
+        } else {
+          // Otherwise add header to the request
+          request.setRequestHeader(key, val);
+        }
+      });
+    }
+
+    // Add withCredentials to request if needed
+    if (!utils.isUndefined(config.withCredentials)) {
+      request.withCredentials = !!config.withCredentials;
+    }
+
+    // Add responseType to request if needed
+    if (responseType && responseType !== 'json') {
+      request.responseType = config.responseType;
+    }
+
+    // Handle progress if needed
+    if (typeof config.onDownloadProgress === 'function') {
+      request.addEventListener('progress', config.onDownloadProgress);
+    }
+
+    // Not all browsers support upload events
+    if (typeof config.onUploadProgress === 'function' && request.upload) {
+      request.upload.addEventListener('progress', config.onUploadProgress);
+    }
+
+    if (config.cancelToken) {
+      // Handle cancellation
+      config.cancelToken.promise.then(function onCanceled(cancel) {
+        if (!request) {
+          return;
+        }
+
+        request.abort();
+        reject(cancel);
+        // Clean up request
+        request = null;
+      });
+    }
+
+    if (!requestData) {
+      requestData = null;
+    }
+
+    // Send the request
+    request.send(requestData);
+  });
+};
+
+
+/***/ }),
+
+/***/ 1758:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var utils = __nccwpck_require__(2618);
+var bind = __nccwpck_require__(7025);
+var Axios = __nccwpck_require__(4662);
+var mergeConfig = __nccwpck_require__(9882);
+var defaults = __nccwpck_require__(6882);
+
+/**
+ * Create an instance of Axios
+ *
+ * @param {Object} defaultConfig The default config for the instance
+ * @return {Axios} A new instance of Axios
+ */
+function createInstance(defaultConfig) {
+  var context = new Axios(defaultConfig);
+  var instance = bind(Axios.prototype.request, context);
+
+  // Copy axios.prototype to instance
+  utils.extend(instance, Axios.prototype, context);
+
+  // Copy context to instance
+  utils.extend(instance, context);
+
+  return instance;
+}
+
+// Create the default instance to be exported
+var axios = createInstance(defaults);
+
+// Expose Axios class to allow class inheritance
+axios.Axios = Axios;
+
+// Factory for creating new instances
+axios.create = function create(instanceConfig) {
+  return createInstance(mergeConfig(axios.defaults, instanceConfig));
+};
+
+// Expose Cancel & CancelToken
+axios.Cancel = __nccwpck_require__(24);
+axios.CancelToken = __nccwpck_require__(8689);
+axios.isCancel = __nccwpck_require__(6845);
+
+// Expose all/spread
+axios.all = function all(promises) {
+  return Promise.all(promises);
+};
+axios.spread = __nccwpck_require__(344);
+
+// Expose isAxiosError
+axios.isAxiosError = __nccwpck_require__(7771);
+
+module.exports = axios;
+
+// Allow use of default import syntax in TypeScript
+module.exports.default = axios;
+
+
+/***/ }),
+
+/***/ 24:
+/***/ ((module) => {
+
+"use strict";
+
+
+/**
+ * A `Cancel` is an object that is thrown when an operation is canceled.
+ *
+ * @class
+ * @param {string=} message The message.
+ */
+function Cancel(message) {
+  this.message = message;
+}
+
+Cancel.prototype.toString = function toString() {
+  return 'Cancel' + (this.message ? ': ' + this.message : '');
+};
+
+Cancel.prototype.__CANCEL__ = true;
+
+module.exports = Cancel;
+
+
+/***/ }),
+
+/***/ 8689:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var Cancel = __nccwpck_require__(24);
+
+/**
+ * A `CancelToken` is an object that can be used to request cancellation of an operation.
+ *
+ * @class
+ * @param {Function} executor The executor function.
+ */
+function CancelToken(executor) {
+  if (typeof executor !== 'function') {
+    throw new TypeError('executor must be a function.');
+  }
+
+  var resolvePromise;
+  this.promise = new Promise(function promiseExecutor(resolve) {
+    resolvePromise = resolve;
+  });
+
+  var token = this;
+  executor(function cancel(message) {
+    if (token.reason) {
+      // Cancellation has already been requested
+      return;
+    }
+
+    token.reason = new Cancel(message);
+    resolvePromise(token.reason);
+  });
+}
+
+/**
+ * Throws a `Cancel` if cancellation has been requested.
+ */
+CancelToken.prototype.throwIfRequested = function throwIfRequested() {
+  if (this.reason) {
+    throw this.reason;
+  }
+};
+
+/**
+ * Returns an object that contains a new `CancelToken` and a function that, when called,
+ * cancels the `CancelToken`.
+ */
+CancelToken.source = function source() {
+  var cancel;
+  var token = new CancelToken(function executor(c) {
+    cancel = c;
+  });
+  return {
+    token: token,
+    cancel: cancel
+  };
+};
+
+module.exports = CancelToken;
+
+
+/***/ }),
+
+/***/ 6845:
+/***/ ((module) => {
+
+"use strict";
+
+
+module.exports = function isCancel(value) {
+  return !!(value && value.__CANCEL__);
+};
+
+
+/***/ }),
+
+/***/ 4662:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var utils = __nccwpck_require__(2618);
+var buildURL = __nccwpck_require__(2694);
+var InterceptorManager = __nccwpck_require__(2402);
+var dispatchRequest = __nccwpck_require__(9811);
+var mergeConfig = __nccwpck_require__(9882);
+var validator = __nccwpck_require__(828);
+
+var validators = validator.validators;
+/**
+ * Create a new instance of Axios
+ *
+ * @param {Object} instanceConfig The default config for the instance
+ */
+function Axios(instanceConfig) {
+  this.defaults = instanceConfig;
+  this.interceptors = {
+    request: new InterceptorManager(),
+    response: new InterceptorManager()
+  };
+}
+
+/**
+ * Dispatch a request
+ *
+ * @param {Object} config The config specific for this request (merged with this.defaults)
+ */
+Axios.prototype.request = function request(config) {
+  /*eslint no-param-reassign:0*/
+  // Allow for axios('example/url'[, config]) a la fetch API
+  if (typeof config === 'string') {
+    config = arguments[1] || {};
+    config.url = arguments[0];
+  } else {
+    config = config || {};
+  }
+
+  config = mergeConfig(this.defaults, config);
+
+  // Set config.method
+  if (config.method) {
+    config.method = config.method.toLowerCase();
+  } else if (this.defaults.method) {
+    config.method = this.defaults.method.toLowerCase();
+  } else {
+    config.method = 'get';
+  }
+
+  var transitional = config.transitional;
+
+  if (transitional !== undefined) {
+    validator.assertOptions(transitional, {
+      silentJSONParsing: validators.transitional(validators.boolean, '1.0.0'),
+      forcedJSONParsing: validators.transitional(validators.boolean, '1.0.0'),
+      clarifyTimeoutError: validators.transitional(validators.boolean, '1.0.0')
+    }, false);
+  }
+
+  // filter out skipped interceptors
+  var requestInterceptorChain = [];
+  var synchronousRequestInterceptors = true;
+  this.interceptors.request.forEach(function unshiftRequestInterceptors(interceptor) {
+    if (typeof interceptor.runWhen === 'function' && interceptor.runWhen(config) === false) {
+      return;
+    }
+
+    synchronousRequestInterceptors = synchronousRequestInterceptors && interceptor.synchronous;
+
+    requestInterceptorChain.unshift(interceptor.fulfilled, interceptor.rejected);
+  });
+
+  var responseInterceptorChain = [];
+  this.interceptors.response.forEach(function pushResponseInterceptors(interceptor) {
+    responseInterceptorChain.push(interceptor.fulfilled, interceptor.rejected);
+  });
+
+  var promise;
+
+  if (!synchronousRequestInterceptors) {
+    var chain = [dispatchRequest, undefined];
+
+    Array.prototype.unshift.apply(chain, requestInterceptorChain);
+    chain = chain.concat(responseInterceptorChain);
+
+    promise = Promise.resolve(config);
+    while (chain.length) {
+      promise = promise.then(chain.shift(), chain.shift());
+    }
+
+    return promise;
+  }
+
+
+  var newConfig = config;
+  while (requestInterceptorChain.length) {
+    var onFulfilled = requestInterceptorChain.shift();
+    var onRejected = requestInterceptorChain.shift();
+    try {
+      newConfig = onFulfilled(newConfig);
+    } catch (error) {
+      onRejected(error);
+      break;
+    }
+  }
+
+  try {
+    promise = dispatchRequest(newConfig);
+  } catch (error) {
+    return Promise.reject(error);
+  }
+
+  while (responseInterceptorChain.length) {
+    promise = promise.then(responseInterceptorChain.shift(), responseInterceptorChain.shift());
+  }
+
+  return promise;
+};
+
+Axios.prototype.getUri = function getUri(config) {
+  config = mergeConfig(this.defaults, config);
+  return buildURL(config.url, config.params, config.paramsSerializer).replace(/^\?/, '');
+};
+
+// Provide aliases for supported request methods
+utils.forEach(['delete', 'get', 'head', 'options'], function forEachMethodNoData(method) {
+  /*eslint func-names:0*/
+  Axios.prototype[method] = function(url, config) {
+    return this.request(mergeConfig(config || {}, {
+      method: method,
+      url: url,
+      data: (config || {}).data
+    }));
+  };
+});
+
+utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
+  /*eslint func-names:0*/
+  Axios.prototype[method] = function(url, data, config) {
+    return this.request(mergeConfig(config || {}, {
+      method: method,
+      url: url,
+      data: data
+    }));
+  };
+});
+
+module.exports = Axios;
+
+
+/***/ }),
+
+/***/ 2402:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var utils = __nccwpck_require__(2618);
+
+function InterceptorManager() {
+  this.handlers = [];
+}
+
+/**
+ * Add a new interceptor to the stack
+ *
+ * @param {Function} fulfilled The function to handle `then` for a `Promise`
+ * @param {Function} rejected The function to handle `reject` for a `Promise`
+ *
+ * @return {Number} An ID used to remove interceptor later
+ */
+InterceptorManager.prototype.use = function use(fulfilled, rejected, options) {
+  this.handlers.push({
+    fulfilled: fulfilled,
+    rejected: rejected,
+    synchronous: options ? options.synchronous : false,
+    runWhen: options ? options.runWhen : null
+  });
+  return this.handlers.length - 1;
+};
+
+/**
+ * Remove an interceptor from the stack
+ *
+ * @param {Number} id The ID that was returned by `use`
+ */
+InterceptorManager.prototype.eject = function eject(id) {
+  if (this.handlers[id]) {
+    this.handlers[id] = null;
+  }
+};
+
+/**
+ * Iterate over all the registered interceptors
+ *
+ * This method is particularly useful for skipping over any
+ * interceptors that may have become `null` calling `eject`.
+ *
+ * @param {Function} fn The function to call for each interceptor
+ */
+InterceptorManager.prototype.forEach = function forEach(fn) {
+  utils.forEach(this.handlers, function forEachHandler(h) {
+    if (h !== null) {
+      fn(h);
+    }
+  });
+};
+
+module.exports = InterceptorManager;
+
+
+/***/ }),
+
+/***/ 9750:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var isAbsoluteURL = __nccwpck_require__(2405);
+var combineURLs = __nccwpck_require__(1180);
+
+/**
+ * Creates a new URL by combining the baseURL with the requestedURL,
+ * only when the requestedURL is not already an absolute URL.
+ * If the requestURL is absolute, this function returns the requestedURL untouched.
+ *
+ * @param {string} baseURL The base URL
+ * @param {string} requestedURL Absolute or relative URL to combine
+ * @returns {string} The combined full path
+ */
+module.exports = function buildFullPath(baseURL, requestedURL) {
+  if (baseURL && !isAbsoluteURL(requestedURL)) {
+    return combineURLs(baseURL, requestedURL);
+  }
+  return requestedURL;
+};
+
+
+/***/ }),
+
+/***/ 5685:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var enhanceError = __nccwpck_require__(4420);
+
+/**
+ * Create an Error with the specified message, config, error code, request and response.
+ *
+ * @param {string} message The error message.
+ * @param {Object} config The config.
+ * @param {string} [code] The error code (for example, 'ECONNABORTED').
+ * @param {Object} [request] The request.
+ * @param {Object} [response] The response.
+ * @returns {Error} The created error.
+ */
+module.exports = function createError(message, config, code, request, response) {
+  var error = new Error(message);
+  return enhanceError(error, config, code, request, response);
+};
+
+
+/***/ }),
+
+/***/ 9811:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var utils = __nccwpck_require__(2618);
+var transformData = __nccwpck_require__(3729);
+var isCancel = __nccwpck_require__(6845);
+var defaults = __nccwpck_require__(6882);
+
+/**
+ * Throws a `Cancel` if cancellation has been requested.
+ */
+function throwIfCancellationRequested(config) {
+  if (config.cancelToken) {
+    config.cancelToken.throwIfRequested();
+  }
+}
+
+/**
+ * Dispatch a request to the server using the configured adapter.
+ *
+ * @param {object} config The config that is to be used for the request
+ * @returns {Promise} The Promise to be fulfilled
+ */
+module.exports = function dispatchRequest(config) {
+  throwIfCancellationRequested(config);
+
+  // Ensure headers exist
+  config.headers = config.headers || {};
+
+  // Transform request data
+  config.data = transformData.call(
+    config,
+    config.data,
+    config.headers,
+    config.transformRequest
+  );
+
+  // Flatten headers
+  config.headers = utils.merge(
+    config.headers.common || {},
+    config.headers[config.method] || {},
+    config.headers
+  );
+
+  utils.forEach(
+    ['delete', 'get', 'head', 'post', 'put', 'patch', 'common'],
+    function cleanHeaderConfig(method) {
+      delete config.headers[method];
+    }
+  );
+
+  var adapter = config.adapter || defaults.adapter;
+
+  return adapter(config).then(function onAdapterResolution(response) {
+    throwIfCancellationRequested(config);
+
+    // Transform response data
+    response.data = transformData.call(
+      config,
+      response.data,
+      response.headers,
+      config.transformResponse
+    );
+
+    return response;
+  }, function onAdapterRejection(reason) {
+    if (!isCancel(reason)) {
+      throwIfCancellationRequested(config);
+
+      // Transform response data
+      if (reason && reason.response) {
+        reason.response.data = transformData.call(
+          config,
+          reason.response.data,
+          reason.response.headers,
+          config.transformResponse
+        );
+      }
+    }
+
+    return Promise.reject(reason);
+  });
+};
+
+
+/***/ }),
+
+/***/ 4420:
+/***/ ((module) => {
+
+"use strict";
+
+
+/**
+ * Update an Error with the specified config, error code, and response.
+ *
+ * @param {Error} error The error to update.
+ * @param {Object} config The config.
+ * @param {string} [code] The error code (for example, 'ECONNABORTED').
+ * @param {Object} [request] The request.
+ * @param {Object} [response] The response.
+ * @returns {Error} The error.
+ */
+module.exports = function enhanceError(error, config, code, request, response) {
+  error.config = config;
+  if (code) {
+    error.code = code;
+  }
+
+  error.request = request;
+  error.response = response;
+  error.isAxiosError = true;
+
+  error.toJSON = function toJSON() {
+    return {
+      // Standard
+      message: this.message,
+      name: this.name,
+      // Microsoft
+      description: this.description,
+      number: this.number,
+      // Mozilla
+      fileName: this.fileName,
+      lineNumber: this.lineNumber,
+      columnNumber: this.columnNumber,
+      stack: this.stack,
+      // Axios
+      config: this.config,
+      code: this.code
+    };
+  };
+  return error;
+};
+
+
+/***/ }),
+
+/***/ 9882:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var utils = __nccwpck_require__(2618);
+
+/**
+ * Config-specific merge-function which creates a new config-object
+ * by merging two configuration objects together.
+ *
+ * @param {Object} config1
+ * @param {Object} config2
+ * @returns {Object} New object resulting from merging config2 to config1
+ */
+module.exports = function mergeConfig(config1, config2) {
+  // eslint-disable-next-line no-param-reassign
+  config2 = config2 || {};
+  var config = {};
+
+  var valueFromConfig2Keys = ['url', 'method', 'data'];
+  var mergeDeepPropertiesKeys = ['headers', 'auth', 'proxy', 'params'];
+  var defaultToConfig2Keys = [
+    'baseURL', 'transformRequest', 'transformResponse', 'paramsSerializer',
+    'timeout', 'timeoutMessage', 'withCredentials', 'adapter', 'responseType', 'xsrfCookieName',
+    'xsrfHeaderName', 'onUploadProgress', 'onDownloadProgress', 'decompress',
+    'maxContentLength', 'maxBodyLength', 'maxRedirects', 'transport', 'httpAgent',
+    'httpsAgent', 'cancelToken', 'socketPath', 'responseEncoding'
+  ];
+  var directMergeKeys = ['validateStatus'];
+
+  function getMergedValue(target, source) {
+    if (utils.isPlainObject(target) && utils.isPlainObject(source)) {
+      return utils.merge(target, source);
+    } else if (utils.isPlainObject(source)) {
+      return utils.merge({}, source);
+    } else if (utils.isArray(source)) {
+      return source.slice();
+    }
+    return source;
+  }
+
+  function mergeDeepProperties(prop) {
+    if (!utils.isUndefined(config2[prop])) {
+      config[prop] = getMergedValue(config1[prop], config2[prop]);
+    } else if (!utils.isUndefined(config1[prop])) {
+      config[prop] = getMergedValue(undefined, config1[prop]);
+    }
+  }
+
+  utils.forEach(valueFromConfig2Keys, function valueFromConfig2(prop) {
+    if (!utils.isUndefined(config2[prop])) {
+      config[prop] = getMergedValue(undefined, config2[prop]);
+    }
+  });
+
+  utils.forEach(mergeDeepPropertiesKeys, mergeDeepProperties);
+
+  utils.forEach(defaultToConfig2Keys, function defaultToConfig2(prop) {
+    if (!utils.isUndefined(config2[prop])) {
+      config[prop] = getMergedValue(undefined, config2[prop]);
+    } else if (!utils.isUndefined(config1[prop])) {
+      config[prop] = getMergedValue(undefined, config1[prop]);
+    }
+  });
+
+  utils.forEach(directMergeKeys, function merge(prop) {
+    if (prop in config2) {
+      config[prop] = getMergedValue(config1[prop], config2[prop]);
+    } else if (prop in config1) {
+      config[prop] = getMergedValue(undefined, config1[prop]);
+    }
+  });
+
+  var axiosKeys = valueFromConfig2Keys
+    .concat(mergeDeepPropertiesKeys)
+    .concat(defaultToConfig2Keys)
+    .concat(directMergeKeys);
+
+  var otherKeys = Object
+    .keys(config1)
+    .concat(Object.keys(config2))
+    .filter(function filterAxiosKeys(key) {
+      return axiosKeys.indexOf(key) === -1;
+    });
+
+  utils.forEach(otherKeys, mergeDeepProperties);
+
+  return config;
+};
+
+
+/***/ }),
+
+/***/ 1917:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var createError = __nccwpck_require__(5685);
+
+/**
+ * Resolve or reject a Promise based on response status.
+ *
+ * @param {Function} resolve A function that resolves the promise.
+ * @param {Function} reject A function that rejects the promise.
+ * @param {object} response The response.
+ */
+module.exports = function settle(resolve, reject, response) {
+  var validateStatus = response.config.validateStatus;
+  if (!response.status || !validateStatus || validateStatus(response.status)) {
+    resolve(response);
+  } else {
+    reject(createError(
+      'Request failed with status code ' + response.status,
+      response.config,
+      null,
+      response.request,
+      response
+    ));
+  }
+};
+
+
+/***/ }),
+
+/***/ 3729:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var utils = __nccwpck_require__(2618);
+var defaults = __nccwpck_require__(6882);
+
+/**
+ * Transform the data for a request or a response
+ *
+ * @param {Object|String} data The data to be transformed
+ * @param {Array} headers The headers for the request or response
+ * @param {Array|Function} fns A single function or Array of functions
+ * @returns {*} The resulting transformed data
+ */
+module.exports = function transformData(data, headers, fns) {
+  var context = this || defaults;
+  /*eslint no-param-reassign:0*/
+  utils.forEach(fns, function transform(fn) {
+    data = fn.call(context, data, headers);
+  });
+
+  return data;
+};
+
+
+/***/ }),
+
+/***/ 6882:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var utils = __nccwpck_require__(2618);
+var normalizeHeaderName = __nccwpck_require__(7938);
+var enhanceError = __nccwpck_require__(4420);
+
+var DEFAULT_CONTENT_TYPE = {
+  'Content-Type': 'application/x-www-form-urlencoded'
+};
+
+function setContentTypeIfUnset(headers, value) {
+  if (!utils.isUndefined(headers) && utils.isUndefined(headers['Content-Type'])) {
+    headers['Content-Type'] = value;
+  }
+}
+
+function getDefaultAdapter() {
+  var adapter;
+  if (typeof XMLHttpRequest !== 'undefined') {
+    // For browsers use XHR adapter
+    adapter = __nccwpck_require__(6767);
+  } else if (typeof process !== 'undefined' && Object.prototype.toString.call(process) === '[object process]') {
+    // For node use HTTP adapter
+    adapter = __nccwpck_require__(580);
+  }
+  return adapter;
+}
+
+var defaults = {
+
+  transitional: {
+    silentJSONParsing: true,
+    forcedJSONParsing: true,
+    clarifyTimeoutError: false
+  },
+
+  adapter: getDefaultAdapter(),
+
+  transformRequest: [function transformRequest(data, headers) {
+    normalizeHeaderName(headers, 'Accept');
+    normalizeHeaderName(headers, 'Content-Type');
+
+    if (utils.isFormData(data) ||
+      utils.isArrayBuffer(data) ||
+      utils.isBuffer(data) ||
+      utils.isStream(data) ||
+      utils.isFile(data) ||
+      utils.isBlob(data)
+    ) {
+      return data;
+    }
+    if (utils.isArrayBufferView(data)) {
+      return data.buffer;
+    }
+    if (utils.isURLSearchParams(data)) {
+      setContentTypeIfUnset(headers, 'application/x-www-form-urlencoded;charset=utf-8');
+      return data.toString();
+    }
+    if (utils.isObject(data) || (headers && headers['Content-Type'] === 'application/json')) {
+      setContentTypeIfUnset(headers, 'application/json');
+      return JSON.stringify(data);
+    }
+    return data;
+  }],
+
+  transformResponse: [function transformResponse(data) {
+    var transitional = this.transitional;
+    var silentJSONParsing = transitional && transitional.silentJSONParsing;
+    var forcedJSONParsing = transitional && transitional.forcedJSONParsing;
+    var strictJSONParsing = !silentJSONParsing && this.responseType === 'json';
+
+    if (strictJSONParsing || (forcedJSONParsing && utils.isString(data) && data.length)) {
+      try {
+        return JSON.parse(data);
+      } catch (e) {
+        if (strictJSONParsing) {
+          if (e.name === 'SyntaxError') {
+            throw enhanceError(e, this, 'E_JSON_PARSE');
+          }
+          throw e;
+        }
+      }
+    }
+
+    return data;
+  }],
+
+  /**
+   * A timeout in milliseconds to abort a request. If set to 0 (default) a
+   * timeout is not created.
+   */
+  timeout: 0,
+
+  xsrfCookieName: 'XSRF-TOKEN',
+  xsrfHeaderName: 'X-XSRF-TOKEN',
+
+  maxContentLength: -1,
+  maxBodyLength: -1,
+
+  validateStatus: function validateStatus(status) {
+    return status >= 200 && status < 300;
+  }
+};
+
+defaults.headers = {
+  common: {
+    'Accept': 'application/json, text/plain, */*'
+  }
+};
+
+utils.forEach(['delete', 'get', 'head'], function forEachMethodNoData(method) {
+  defaults.headers[method] = {};
+});
+
+utils.forEach(['post', 'put', 'patch'], function forEachMethodWithData(method) {
+  defaults.headers[method] = utils.merge(DEFAULT_CONTENT_TYPE);
+});
+
+module.exports = defaults;
+
+
+/***/ }),
+
+/***/ 7025:
+/***/ ((module) => {
+
+"use strict";
+
+
+module.exports = function bind(fn, thisArg) {
+  return function wrap() {
+    var args = new Array(arguments.length);
+    for (var i = 0; i < args.length; i++) {
+      args[i] = arguments[i];
+    }
+    return fn.apply(thisArg, args);
+  };
+};
+
+
+/***/ }),
+
+/***/ 2694:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var utils = __nccwpck_require__(2618);
+
+function encode(val) {
+  return encodeURIComponent(val).
+    replace(/%3A/gi, ':').
+    replace(/%24/g, '$').
+    replace(/%2C/gi, ',').
+    replace(/%20/g, '+').
+    replace(/%5B/gi, '[').
+    replace(/%5D/gi, ']');
+}
+
+/**
+ * Build a URL by appending params to the end
+ *
+ * @param {string} url The base of the url (e.g., http://www.google.com)
+ * @param {object} [params] The params to be appended
+ * @returns {string} The formatted url
+ */
+module.exports = function buildURL(url, params, paramsSerializer) {
+  /*eslint no-param-reassign:0*/
+  if (!params) {
+    return url;
+  }
+
+  var serializedParams;
+  if (paramsSerializer) {
+    serializedParams = paramsSerializer(params);
+  } else if (utils.isURLSearchParams(params)) {
+    serializedParams = params.toString();
+  } else {
+    var parts = [];
+
+    utils.forEach(params, function serialize(val, key) {
+      if (val === null || typeof val === 'undefined') {
+        return;
+      }
+
+      if (utils.isArray(val)) {
+        key = key + '[]';
+      } else {
+        val = [val];
+      }
+
+      utils.forEach(val, function parseValue(v) {
+        if (utils.isDate(v)) {
+          v = v.toISOString();
+        } else if (utils.isObject(v)) {
+          v = JSON.stringify(v);
+        }
+        parts.push(encode(key) + '=' + encode(v));
+      });
+    });
+
+    serializedParams = parts.join('&');
+  }
+
+  if (serializedParams) {
+    var hashmarkIndex = url.indexOf('#');
+    if (hashmarkIndex !== -1) {
+      url = url.slice(0, hashmarkIndex);
+    }
+
+    url += (url.indexOf('?') === -1 ? '?' : '&') + serializedParams;
+  }
+
+  return url;
+};
+
+
+/***/ }),
+
+/***/ 1180:
+/***/ ((module) => {
+
+"use strict";
+
+
+/**
+ * Creates a new URL by combining the specified URLs
+ *
+ * @param {string} baseURL The base URL
+ * @param {string} relativeURL The relative URL
+ * @returns {string} The combined URL
+ */
+module.exports = function combineURLs(baseURL, relativeURL) {
+  return relativeURL
+    ? baseURL.replace(/\/+$/, '') + '/' + relativeURL.replace(/^\/+/, '')
+    : baseURL;
+};
+
+
+/***/ }),
+
+/***/ 883:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var utils = __nccwpck_require__(2618);
+
+module.exports = (
+  utils.isStandardBrowserEnv() ?
+
+  // Standard browser envs support document.cookie
+    (function standardBrowserEnv() {
+      return {
+        write: function write(name, value, expires, path, domain, secure) {
+          var cookie = [];
+          cookie.push(name + '=' + encodeURIComponent(value));
+
+          if (utils.isNumber(expires)) {
+            cookie.push('expires=' + new Date(expires).toGMTString());
+          }
+
+          if (utils.isString(path)) {
+            cookie.push('path=' + path);
+          }
+
+          if (utils.isString(domain)) {
+            cookie.push('domain=' + domain);
+          }
+
+          if (secure === true) {
+            cookie.push('secure');
+          }
+
+          document.cookie = cookie.join('; ');
+        },
+
+        read: function read(name) {
+          var match = document.cookie.match(new RegExp('(^|;\\s*)(' + name + ')=([^;]*)'));
+          return (match ? decodeURIComponent(match[3]) : null);
+        },
+
+        remove: function remove(name) {
+          this.write(name, '', Date.now() - 86400000);
+        }
+      };
+    })() :
+
+  // Non standard browser env (web workers, react-native) lack needed support.
+    (function nonStandardBrowserEnv() {
+      return {
+        write: function write() {},
+        read: function read() { return null; },
+        remove: function remove() {}
+      };
+    })()
+);
+
+
+/***/ }),
+
+/***/ 2405:
+/***/ ((module) => {
+
+"use strict";
+
+
+/**
+ * Determines whether the specified URL is absolute
+ *
+ * @param {string} url The URL to test
+ * @returns {boolean} True if the specified URL is absolute, otherwise false
+ */
+module.exports = function isAbsoluteURL(url) {
+  // A URL is considered absolute if it begins with "<scheme>://" or "//" (protocol-relative URL).
+  // RFC 3986 defines scheme name as a sequence of characters beginning with a letter and followed
+  // by any combination of letters, digits, plus, period, or hyphen.
+  return /^([a-z][a-z\d\+\-\.]*:)?\/\//i.test(url);
+};
+
+
+/***/ }),
+
+/***/ 7771:
+/***/ ((module) => {
+
+"use strict";
+
+
+/**
+ * Determines whether the payload is an error thrown by Axios
+ *
+ * @param {*} payload The value to test
+ * @returns {boolean} True if the payload is an error thrown by Axios, otherwise false
+ */
+module.exports = function isAxiosError(payload) {
+  return (typeof payload === 'object') && (payload.isAxiosError === true);
+};
+
+
+/***/ }),
+
+/***/ 1095:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var utils = __nccwpck_require__(2618);
+
+module.exports = (
+  utils.isStandardBrowserEnv() ?
+
+  // Standard browser envs have full support of the APIs needed to test
+  // whether the request URL is of the same origin as current location.
+    (function standardBrowserEnv() {
+      var msie = /(msie|trident)/i.test(navigator.userAgent);
+      var urlParsingNode = document.createElement('a');
+      var originURL;
+
+      /**
+    * Parse a URL to discover it's components
+    *
+    * @param {String} url The URL to be parsed
+    * @returns {Object}
+    */
+      function resolveURL(url) {
+        var href = url;
+
+        if (msie) {
+        // IE needs attribute set twice to normalize properties
+          urlParsingNode.setAttribute('href', href);
+          href = urlParsingNode.href;
+        }
+
+        urlParsingNode.setAttribute('href', href);
+
+        // urlParsingNode provides the UrlUtils interface - http://url.spec.whatwg.org/#urlutils
+        return {
+          href: urlParsingNode.href,
+          protocol: urlParsingNode.protocol ? urlParsingNode.protocol.replace(/:$/, '') : '',
+          host: urlParsingNode.host,
+          search: urlParsingNode.search ? urlParsingNode.search.replace(/^\?/, '') : '',
+          hash: urlParsingNode.hash ? urlParsingNode.hash.replace(/^#/, '') : '',
+          hostname: urlParsingNode.hostname,
+          port: urlParsingNode.port,
+          pathname: (urlParsingNode.pathname.charAt(0) === '/') ?
+            urlParsingNode.pathname :
+            '/' + urlParsingNode.pathname
+        };
+      }
+
+      originURL = resolveURL(window.location.href);
+
+      /**
+    * Determine if a URL shares the same origin as the current location
+    *
+    * @param {String} requestURL The URL to test
+    * @returns {boolean} True if URL shares the same origin, otherwise false
+    */
+      return function isURLSameOrigin(requestURL) {
+        var parsed = (utils.isString(requestURL)) ? resolveURL(requestURL) : requestURL;
+        return (parsed.protocol === originURL.protocol &&
+            parsed.host === originURL.host);
+      };
+    })() :
+
+  // Non standard browser envs (web workers, react-native) lack needed support.
+    (function nonStandardBrowserEnv() {
+      return function isURLSameOrigin() {
+        return true;
+      };
+    })()
+);
+
+
+/***/ }),
+
+/***/ 7938:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var utils = __nccwpck_require__(2618);
+
+module.exports = function normalizeHeaderName(headers, normalizedName) {
+  utils.forEach(headers, function processHeader(value, name) {
+    if (name !== normalizedName && name.toUpperCase() === normalizedName.toUpperCase()) {
+      headers[normalizedName] = value;
+      delete headers[name];
+    }
+  });
+};
+
+
+/***/ }),
+
+/***/ 7338:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var utils = __nccwpck_require__(2618);
+
+// Headers whose duplicates are ignored by node
+// c.f. https://nodejs.org/api/http.html#http_message_headers
+var ignoreDuplicateOf = [
+  'age', 'authorization', 'content-length', 'content-type', 'etag',
+  'expires', 'from', 'host', 'if-modified-since', 'if-unmodified-since',
+  'last-modified', 'location', 'max-forwards', 'proxy-authorization',
+  'referer', 'retry-after', 'user-agent'
+];
+
+/**
+ * Parse headers into an object
+ *
+ * ```
+ * Date: Wed, 27 Aug 2014 08:58:49 GMT
+ * Content-Type: application/json
+ * Connection: keep-alive
+ * Transfer-Encoding: chunked
+ * ```
+ *
+ * @param {String} headers Headers needing to be parsed
+ * @returns {Object} Headers parsed into an object
+ */
+module.exports = function parseHeaders(headers) {
+  var parsed = {};
+  var key;
+  var val;
+  var i;
+
+  if (!headers) { return parsed; }
+
+  utils.forEach(headers.split('\n'), function parser(line) {
+    i = line.indexOf(':');
+    key = utils.trim(line.substr(0, i)).toLowerCase();
+    val = utils.trim(line.substr(i + 1));
+
+    if (key) {
+      if (parsed[key] && ignoreDuplicateOf.indexOf(key) >= 0) {
+        return;
+      }
+      if (key === 'set-cookie') {
+        parsed[key] = (parsed[key] ? parsed[key] : []).concat([val]);
+      } else {
+        parsed[key] = parsed[key] ? parsed[key] + ', ' + val : val;
+      }
+    }
+  });
+
+  return parsed;
+};
+
+
+/***/ }),
+
+/***/ 344:
+/***/ ((module) => {
+
+"use strict";
+
+
+/**
+ * Syntactic sugar for invoking a function and expanding an array for arguments.
+ *
+ * Common use case would be to use `Function.prototype.apply`.
+ *
+ *  ```js
+ *  function f(x, y, z) {}
+ *  var args = [1, 2, 3];
+ *  f.apply(null, args);
+ *  ```
+ *
+ * With `spread` this example can be re-written.
+ *
+ *  ```js
+ *  spread(function(x, y, z) {})([1, 2, 3]);
+ *  ```
+ *
+ * @param {Function} callback
+ * @returns {Function}
+ */
+module.exports = function spread(callback) {
+  return function wrap(arr) {
+    return callback.apply(null, arr);
+  };
+};
+
+
+/***/ }),
+
+/***/ 828:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var pkg = __nccwpck_require__(222);
+
+var validators = {};
+
+// eslint-disable-next-line func-names
+['object', 'boolean', 'number', 'function', 'string', 'symbol'].forEach(function(type, i) {
+  validators[type] = function validator(thing) {
+    return typeof thing === type || 'a' + (i < 1 ? 'n ' : ' ') + type;
+  };
+});
+
+var deprecatedWarnings = {};
+var currentVerArr = pkg.version.split('.');
+
+/**
+ * Compare package versions
+ * @param {string} version
+ * @param {string?} thanVersion
+ * @returns {boolean}
+ */
+function isOlderVersion(version, thanVersion) {
+  var pkgVersionArr = thanVersion ? thanVersion.split('.') : currentVerArr;
+  var destVer = version.split('.');
+  for (var i = 0; i < 3; i++) {
+    if (pkgVersionArr[i] > destVer[i]) {
+      return true;
+    } else if (pkgVersionArr[i] < destVer[i]) {
+      return false;
+    }
+  }
+  return false;
+}
+
+/**
+ * Transitional option validator
+ * @param {function|boolean?} validator
+ * @param {string?} version
+ * @param {string} message
+ * @returns {function}
+ */
+validators.transitional = function transitional(validator, version, message) {
+  var isDeprecated = version && isOlderVersion(version);
+
+  function formatMessage(opt, desc) {
+    return '[Axios v' + pkg.version + '] Transitional option \'' + opt + '\'' + desc + (message ? '. ' + message : '');
+  }
+
+  // eslint-disable-next-line func-names
+  return function(value, opt, opts) {
+    if (validator === false) {
+      throw new Error(formatMessage(opt, ' has been removed in ' + version));
+    }
+
+    if (isDeprecated && !deprecatedWarnings[opt]) {
+      deprecatedWarnings[opt] = true;
+      // eslint-disable-next-line no-console
+      console.warn(
+        formatMessage(
+          opt,
+          ' has been deprecated since v' + version + ' and will be removed in the near future'
+        )
+      );
+    }
+
+    return validator ? validator(value, opt, opts) : true;
+  };
+};
+
+/**
+ * Assert object's properties type
+ * @param {object} options
+ * @param {object} schema
+ * @param {boolean?} allowUnknown
+ */
+
+function assertOptions(options, schema, allowUnknown) {
+  if (typeof options !== 'object') {
+    throw new TypeError('options must be an object');
+  }
+  var keys = Object.keys(options);
+  var i = keys.length;
+  while (i-- > 0) {
+    var opt = keys[i];
+    var validator = schema[opt];
+    if (validator) {
+      var value = options[opt];
+      var result = value === undefined || validator(value, opt, options);
+      if (result !== true) {
+        throw new TypeError('option ' + opt + ' must be ' + result);
+      }
+      continue;
+    }
+    if (allowUnknown !== true) {
+      throw Error('Unknown option ' + opt);
+    }
+  }
+}
+
+module.exports = {
+  isOlderVersion: isOlderVersion,
+  assertOptions: assertOptions,
+  validators: validators
+};
+
+
+/***/ }),
+
+/***/ 2618:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var bind = __nccwpck_require__(7025);
+
+// utils is a library of generic helper functions non-specific to axios
+
+var toString = Object.prototype.toString;
+
+/**
+ * Determine if a value is an Array
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is an Array, otherwise false
+ */
+function isArray(val) {
+  return toString.call(val) === '[object Array]';
+}
+
+/**
+ * Determine if a value is undefined
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if the value is undefined, otherwise false
+ */
+function isUndefined(val) {
+  return typeof val === 'undefined';
+}
+
+/**
+ * Determine if a value is a Buffer
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Buffer, otherwise false
+ */
+function isBuffer(val) {
+  return val !== null && !isUndefined(val) && val.constructor !== null && !isUndefined(val.constructor)
+    && typeof val.constructor.isBuffer === 'function' && val.constructor.isBuffer(val);
+}
+
+/**
+ * Determine if a value is an ArrayBuffer
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is an ArrayBuffer, otherwise false
+ */
+function isArrayBuffer(val) {
+  return toString.call(val) === '[object ArrayBuffer]';
+}
+
+/**
+ * Determine if a value is a FormData
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is an FormData, otherwise false
+ */
+function isFormData(val) {
+  return (typeof FormData !== 'undefined') && (val instanceof FormData);
+}
+
+/**
+ * Determine if a value is a view on an ArrayBuffer
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a view on an ArrayBuffer, otherwise false
+ */
+function isArrayBufferView(val) {
+  var result;
+  if ((typeof ArrayBuffer !== 'undefined') && (ArrayBuffer.isView)) {
+    result = ArrayBuffer.isView(val);
+  } else {
+    result = (val) && (val.buffer) && (val.buffer instanceof ArrayBuffer);
+  }
+  return result;
+}
+
+/**
+ * Determine if a value is a String
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a String, otherwise false
+ */
+function isString(val) {
+  return typeof val === 'string';
+}
+
+/**
+ * Determine if a value is a Number
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Number, otherwise false
+ */
+function isNumber(val) {
+  return typeof val === 'number';
+}
+
+/**
+ * Determine if a value is an Object
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is an Object, otherwise false
+ */
+function isObject(val) {
+  return val !== null && typeof val === 'object';
+}
+
+/**
+ * Determine if a value is a plain Object
+ *
+ * @param {Object} val The value to test
+ * @return {boolean} True if value is a plain Object, otherwise false
+ */
+function isPlainObject(val) {
+  if (toString.call(val) !== '[object Object]') {
+    return false;
+  }
+
+  var prototype = Object.getPrototypeOf(val);
+  return prototype === null || prototype === Object.prototype;
+}
+
+/**
+ * Determine if a value is a Date
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Date, otherwise false
+ */
+function isDate(val) {
+  return toString.call(val) === '[object Date]';
+}
+
+/**
+ * Determine if a value is a File
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a File, otherwise false
+ */
+function isFile(val) {
+  return toString.call(val) === '[object File]';
+}
+
+/**
+ * Determine if a value is a Blob
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Blob, otherwise false
+ */
+function isBlob(val) {
+  return toString.call(val) === '[object Blob]';
+}
+
+/**
+ * Determine if a value is a Function
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Function, otherwise false
+ */
+function isFunction(val) {
+  return toString.call(val) === '[object Function]';
+}
+
+/**
+ * Determine if a value is a Stream
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a Stream, otherwise false
+ */
+function isStream(val) {
+  return isObject(val) && isFunction(val.pipe);
+}
+
+/**
+ * Determine if a value is a URLSearchParams object
+ *
+ * @param {Object} val The value to test
+ * @returns {boolean} True if value is a URLSearchParams object, otherwise false
+ */
+function isURLSearchParams(val) {
+  return typeof URLSearchParams !== 'undefined' && val instanceof URLSearchParams;
+}
+
+/**
+ * Trim excess whitespace off the beginning and end of a string
+ *
+ * @param {String} str The String to trim
+ * @returns {String} The String freed of excess whitespace
+ */
+function trim(str) {
+  return str.trim ? str.trim() : str.replace(/^\s+|\s+$/g, '');
+}
+
+/**
+ * Determine if we're running in a standard browser environment
+ *
+ * This allows axios to run in a web worker, and react-native.
+ * Both environments support XMLHttpRequest, but not fully standard globals.
+ *
+ * web workers:
+ *  typeof window -> undefined
+ *  typeof document -> undefined
+ *
+ * react-native:
+ *  navigator.product -> 'ReactNative'
+ * nativescript
+ *  navigator.product -> 'NativeScript' or 'NS'
+ */
+function isStandardBrowserEnv() {
+  if (typeof navigator !== 'undefined' && (navigator.product === 'ReactNative' ||
+                                           navigator.product === 'NativeScript' ||
+                                           navigator.product === 'NS')) {
+    return false;
+  }
+  return (
+    typeof window !== 'undefined' &&
+    typeof document !== 'undefined'
+  );
+}
+
+/**
+ * Iterate over an Array or an Object invoking a function for each item.
+ *
+ * If `obj` is an Array callback will be called passing
+ * the value, index, and complete array for each item.
+ *
+ * If 'obj' is an Object callback will be called passing
+ * the value, key, and complete object for each property.
+ *
+ * @param {Object|Array} obj The object to iterate
+ * @param {Function} fn The callback to invoke for each item
+ */
+function forEach(obj, fn) {
+  // Don't bother if no value provided
+  if (obj === null || typeof obj === 'undefined') {
+    return;
+  }
+
+  // Force an array if not already something iterable
+  if (typeof obj !== 'object') {
+    /*eslint no-param-reassign:0*/
+    obj = [obj];
+  }
+
+  if (isArray(obj)) {
+    // Iterate over array values
+    for (var i = 0, l = obj.length; i < l; i++) {
+      fn.call(null, obj[i], i, obj);
+    }
+  } else {
+    // Iterate over object keys
+    for (var key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        fn.call(null, obj[key], key, obj);
+      }
+    }
+  }
+}
+
+/**
+ * Accepts varargs expecting each argument to be an object, then
+ * immutably merges the properties of each object and returns result.
+ *
+ * When multiple objects contain the same key the later object in
+ * the arguments list will take precedence.
+ *
+ * Example:
+ *
+ * ```js
+ * var result = merge({foo: 123}, {foo: 456});
+ * console.log(result.foo); // outputs 456
+ * ```
+ *
+ * @param {Object} obj1 Object to merge
+ * @returns {Object} Result of all merge properties
+ */
+function merge(/* obj1, obj2, obj3, ... */) {
+  var result = {};
+  function assignValue(val, key) {
+    if (isPlainObject(result[key]) && isPlainObject(val)) {
+      result[key] = merge(result[key], val);
+    } else if (isPlainObject(val)) {
+      result[key] = merge({}, val);
+    } else if (isArray(val)) {
+      result[key] = val.slice();
+    } else {
+      result[key] = val;
+    }
+  }
+
+  for (var i = 0, l = arguments.length; i < l; i++) {
+    forEach(arguments[i], assignValue);
+  }
+  return result;
+}
+
+/**
+ * Extends object a by mutably adding to it the properties of object b.
+ *
+ * @param {Object} a The object to be extended
+ * @param {Object} b The object to copy properties from
+ * @param {Object} thisArg The object to bind function to
+ * @return {Object} The resulting value of object a
+ */
+function extend(a, b, thisArg) {
+  forEach(b, function assignValue(val, key) {
+    if (thisArg && typeof val === 'function') {
+      a[key] = bind(val, thisArg);
+    } else {
+      a[key] = val;
+    }
+  });
+  return a;
+}
+
+/**
+ * Remove byte order marker. This catches EF BB BF (the UTF-8 BOM)
+ *
+ * @param {string} content with BOM
+ * @return {string} content value without BOM
+ */
+function stripBOM(content) {
+  if (content.charCodeAt(0) === 0xFEFF) {
+    content = content.slice(1);
+  }
+  return content;
+}
+
+module.exports = {
+  isArray: isArray,
+  isArrayBuffer: isArrayBuffer,
+  isBuffer: isBuffer,
+  isFormData: isFormData,
+  isArrayBufferView: isArrayBufferView,
+  isString: isString,
+  isNumber: isNumber,
+  isObject: isObject,
+  isPlainObject: isPlainObject,
+  isUndefined: isUndefined,
+  isDate: isDate,
+  isFile: isFile,
+  isBlob: isBlob,
+  isFunction: isFunction,
+  isStream: isStream,
+  isURLSearchParams: isURLSearchParams,
+  isStandardBrowserEnv: isStandardBrowserEnv,
+  forEach: forEach,
+  merge: merge,
+  extend: extend,
+  trim: trim,
+  stripBOM: stripBOM
+};
+
+
+/***/ }),
+
 /***/ 4735:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -681,7 +2981,7 @@ CrowdinApi.FETCH_INSTANCE = new fetchClient_1.FetchClient();
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.AxisProvider = void 0;
-const axios_1 = __nccwpck_require__(8577);
+const axios_1 = __nccwpck_require__(8675);
 class AxisProvider {
     constructor() {
         this.pendingRequests = 0;
@@ -2000,18 +4300,20 @@ class SourceFiles extends core_1.CrowdinApi {
         const url = `${this.url}/projects/${projectId}/branches/${branchId}`;
         return this.patch(url, request, this.defaultConfig());
     }
-    /**
-     * @param projectId project identifier
-     * @param branchId filter directories by branchId
-     * @param directoryId filter directories by directoryId
-     * @param limit maximum number of items to retrieve (default 25)
-     * @param offset starting offset in the collection (default 0)
-     */
-    listProjectDirectories(projectId, branchId, directoryId, limit, offset) {
+    listProjectDirectories(projectId, branchIdOrRequest, directoryId, limit, offset, filter, recursion) {
         let url = `${this.url}/projects/${projectId}/directories`;
-        url = this.addQueryParam(url, 'branchId', branchId);
-        url = this.addQueryParam(url, 'directoryId', directoryId);
-        return this.getList(url, limit, offset);
+        let request;
+        if (branchIdOrRequest && typeof branchIdOrRequest === 'object') {
+            request = branchIdOrRequest;
+        }
+        else {
+            request = { branchId: branchIdOrRequest, directoryId, limit, offset, recursion, filter };
+        }
+        url = this.addQueryParam(url, 'branchId', request.branchId);
+        url = this.addQueryParam(url, 'directoryId', request.directoryId);
+        url = this.addQueryParam(url, 'filter', request.filter);
+        url = this.addQueryParam(url, 'recursion', request.recursion);
+        return this.getList(url, request.limit, request.offset);
     }
     /**
      * @param projectId project identifier
@@ -2241,7 +4543,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.SourceStringsModel = exports.SourceStrings = void 0;
 const core_1 = __nccwpck_require__(4735);
 class SourceStrings extends core_1.CrowdinApi {
-    listProjectStrings(projectId, fileIdOrRequest, limit, offset, filter, denormalizePlaceholders, labelIds, scope, croql) {
+    listProjectStrings(projectId, fileIdOrRequest, limit, offset, filter, denormalizePlaceholders, labelIds, scope, croql, branchId, directoryId) {
         let url = `${this.url}/projects/${projectId}/strings`;
         let request;
         if (fileIdOrRequest && typeof fileIdOrRequest === 'object') {
@@ -2257,6 +4559,8 @@ class SourceStrings extends core_1.CrowdinApi {
                 labelIds,
                 scope,
                 croql,
+                branchId,
+                directoryId,
             };
         }
         url = this.addQueryParam(url, 'fileId', request.fileId);
@@ -2265,6 +4569,8 @@ class SourceStrings extends core_1.CrowdinApi {
         url = this.addQueryParam(url, 'labelIds', request.labelIds);
         url = this.addQueryParam(url, 'scope', request.scope);
         url = this.addQueryParam(url, 'croql', request.croql);
+        url = this.addQueryParam(url, 'branchId', request.branchId);
+        url = this.addQueryParam(url, 'directoryId', request.directoryId);
         return this.getList(url, request.limit, request.offset);
     }
     /**
@@ -2414,22 +4720,20 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.StringTranslationsModel = exports.StringTranslations = void 0;
 const core_1 = __nccwpck_require__(4735);
 class StringTranslations extends core_1.CrowdinApi {
-    /**
-     * @param projectId project identifier
-     * @param stringId string identifier
-     * @param languageId language identifier
-     * @param translationId translation identifier
-     * @param limit maximum number of items to retrieve (default 25)
-     * @param offset starting offset in the collection (default 0)
-     * @param fileId file identifier
-     */
-    listTranslationApprovals(projectId, stringId, languageId, translationId, limit, offset, fileId) {
+    listTranslationApprovals(projectId, stringIdOrRequest, languageId, translationId, limit, offset, fileId) {
         let url = `${this.url}/projects/${projectId}/approvals`;
-        url = this.addQueryParam(url, 'stringId', stringId);
-        url = this.addQueryParam(url, 'languageId', languageId);
-        url = this.addQueryParam(url, 'translationId', translationId);
-        url = this.addQueryParam(url, 'fileId', fileId);
-        return this.getList(url, limit, offset);
+        let request;
+        if (stringIdOrRequest && typeof stringIdOrRequest === 'object') {
+            request = stringIdOrRequest;
+        }
+        else {
+            request = { stringId: stringIdOrRequest, languageId, translationId, limit, offset, fileId };
+        }
+        url = this.addQueryParam(url, 'stringId', request.stringId);
+        url = this.addQueryParam(url, 'languageId', request.languageId);
+        url = this.addQueryParam(url, 'translationId', request.translationId);
+        url = this.addQueryParam(url, 'fileId', request.fileId);
+        return this.getList(url, request.limit, request.offset);
     }
     /**
      * @param projectId project identifier
@@ -2455,25 +4759,29 @@ class StringTranslations extends core_1.CrowdinApi {
         const url = `${this.url}/projects/${projectId}/approvals/${approvalId}`;
         return this.delete(url, this.defaultConfig());
     }
-    /**
-     * @param projectId project identifier
-     * @param languageId language identifier
-     * @param stringIds filter translations by stringIds
-     * @param fileId filter translations by fileId
-     * @param limit maximum number of items to retrieve (default 25)
-     * @param offset starting offset in the collection (default 0)
-     * @param labelIds filter translations by fileId
-     * @param denormalizePlaceholders enable denormalize placeholders
-     * @param croql filter translations by CroQL (Can't be used with `stringIds`, `labelIds` or `fileId` in same request)
-     */
-    listLanguageTranslations(projectId, languageId, stringIds, fileId, limit, offset, labelIds, denormalizePlaceholders, croql) {
+    listLanguageTranslations(projectId, languageId, stringIdsOrRequest, fileId, limit, offset, labelIds, denormalizePlaceholders, croql) {
         let url = `${this.url}/projects/${projectId}/languages/${languageId}/translations`;
-        url = this.addQueryParam(url, 'stringIds', stringIds);
-        url = this.addQueryParam(url, 'fileId', fileId);
-        url = this.addQueryParam(url, 'labelIds', labelIds);
-        url = this.addQueryParam(url, 'denormalizePlaceholders', denormalizePlaceholders);
-        url = this.addQueryParam(url, 'croql', croql);
-        return this.getList(url, limit, offset);
+        let request;
+        if (stringIdsOrRequest && typeof stringIdsOrRequest === 'object') {
+            request = stringIdsOrRequest;
+        }
+        else {
+            request = {
+                stringIds: stringIdsOrRequest,
+                fileId,
+                limit,
+                offset,
+                labelIds,
+                denormalizePlaceholders,
+                croql,
+            };
+        }
+        url = this.addQueryParam(url, 'stringIds', request.stringIds);
+        url = this.addQueryParam(url, 'fileId', request.fileId);
+        url = this.addQueryParam(url, 'labelIds', request.labelIds);
+        url = this.addQueryParam(url, 'denormalizePlaceholders', request.denormalizePlaceholders);
+        url = this.addQueryParam(url, 'croql', request.croql);
+        return this.getList(url, request.limit, request.offset);
     }
     /**
      * @param projectId project identifier
@@ -2533,20 +4841,19 @@ class StringTranslations extends core_1.CrowdinApi {
         const url = `${this.url}/projects/${projectId}/translations/${translationId}/restore`;
         return this.put(url, {}, this.defaultConfig());
     }
-    /**
-     * @param projectId project identifier
-     * @param stringId string identifier
-     * @param languageId language identifier
-     * @param translationId translation identifier
-     * @param limit maximum number of items to retrieve (default 25)
-     * @param offset starting offset in the collection (default 0)
-     */
-    listTranslationVotes(projectId, stringId, languageId, translationId, limit, offset) {
+    listTranslationVotes(projectId, stringIdOrRequest, languageId, translationId, limit, offset) {
         let url = `${this.url}/projects/${projectId}/votes`;
-        url = this.addQueryParam(url, 'stringId', stringId);
-        url = this.addQueryParam(url, 'languageId', languageId);
-        url = this.addQueryParam(url, 'translationId', translationId);
-        return this.getList(url, limit, offset);
+        let request;
+        if (stringIdOrRequest && typeof stringIdOrRequest === 'object') {
+            request = stringIdOrRequest;
+        }
+        else {
+            request = { stringId: stringIdOrRequest, languageId, translationId, limit, offset };
+        }
+        url = this.addQueryParam(url, 'stringId', request.stringId);
+        url = this.addQueryParam(url, 'languageId', request.languageId);
+        url = this.addQueryParam(url, 'translationId', request.translationId);
+        return this.getList(url, request.limit, request.offset);
     }
     /**
      * @param projectId project identifier
@@ -2643,17 +4950,18 @@ class Tasks extends core_1.CrowdinApi {
         const url = `${this.url}/projects/${projectId}/tasks/${taskId}`;
         return this.patch(url, request, this.defaultConfig());
     }
-    /**
-     * @param limit maximum number of items to retrieve (default 25)
-     * @param offset starting offset in the collection (default 0)
-     * @param status list tasks with specified statuses. It can be one status or a list of comma-separated status values
-     * @param isArchived list archived/not archived tasks for the authorized user. 1 - archived, 0 - not archived
-     */
-    listUserTasks(limit, offset, status, isArchived) {
+    listUserTasks(limitOrRequest, offset, status, isArchived) {
         let url = `${this.url}/user/tasks`;
-        url = this.addQueryParam(url, 'status', status);
-        url = this.addQueryParam(url, 'isArchived', isArchived);
-        return this.getList(url, limit, offset);
+        let request;
+        if (limitOrRequest && typeof limitOrRequest === 'object') {
+            request = limitOrRequest;
+        }
+        else {
+            request = { limit: limitOrRequest, offset, status, isArchived };
+        }
+        url = this.addQueryParam(url, 'status', request.status);
+        url = this.addQueryParam(url, 'isArchived', request.isArchived);
+        return this.getList(url, request.limit, request.offset);
     }
     /**
      * @param projectId project identifier
@@ -3030,20 +5338,19 @@ class TranslationStatus extends core_1.CrowdinApi {
         const url = `${this.url}/projects/${projectId}/files/${fileId}/languages/progress`;
         return this.getList(url, limit, offset);
     }
-    /**
-     * @param projectId project identifier
-     * @param limit maximum number of items to retrieve (default 25)
-     * @param offset starting offset in the collection (default 0)
-     * @param category defines the issue category
-     * @param validation defines the QA check issue validation type
-     * @param languageIds filter progress by languageId
-     */
-    listQaCheckIssues(projectId, limit, offset, category, validation, languageIds) {
+    listQaCheckIssues(projectId, limitOrRequest, offset, category, validation, languageIds) {
         let url = `${this.url}/projects/${projectId}/qa-checks`;
-        url = this.addQueryParam(url, 'category', category);
-        url = this.addQueryParam(url, 'validation', validation);
-        url = this.addQueryParam(url, 'languageIds', languageIds);
-        return this.getList(url, limit, offset);
+        let request;
+        if (limitOrRequest && typeof limitOrRequest === 'object') {
+            request = limitOrRequest;
+        }
+        else {
+            request = { limit: limitOrRequest, offset, category, validation, languageIds };
+        }
+        url = this.addQueryParam(url, 'category', request.category);
+        url = this.addQueryParam(url, 'validation', request.validation);
+        url = this.addQueryParam(url, 'languageIds', request.languageIds);
+        return this.getList(url, request.limit, request.offset);
     }
 }
 exports.TranslationStatus = TranslationStatus;
@@ -3135,6 +5442,16 @@ class Translations extends core_1.CrowdinApi {
     }
     /**
      * @param projectId project identifier
+     * @param directoryId directory identifier
+     * @param request request body
+     */
+    buildProjectDirectoryTranslation(projectId, directoryId, request) {
+        const url = `${this.url}/projects/${projectId}/translations/builds/directories/${directoryId}`;
+        const config = this.defaultConfig();
+        return this.post(url, request, config);
+    }
+    /**
+     * @param projectId project identifier
      * @param fileId file identifier
      * @param request request body
      * @param eTag eTag 'If-None-Match' header
@@ -3211,6 +5528,14 @@ class Translations extends core_1.CrowdinApi {
 exports.Translations = Translations;
 var TranslationsModel;
 (function (TranslationsModel) {
+    let BuildStatus;
+    (function (BuildStatus) {
+        BuildStatus["CREATED"] = "created";
+        BuildStatus["IN_PROGRESS"] = "inProgress";
+        BuildStatus["CANCELED"] = "canceled";
+        BuildStatus["FAILED"] = "failed";
+        BuildStatus["FINISHED"] = "finished";
+    })(BuildStatus = TranslationsModel.BuildStatus || (TranslationsModel.BuildStatus = {}));
     let Method;
     (function (Method) {
         Method["TM"] = "tm";
@@ -4213,21 +6538,19 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.UsersModel = exports.Users = void 0;
 const core_1 = __nccwpck_require__(4735);
 class Users extends core_1.CrowdinApi {
-    /**
-     *
-     * @param projectId project identifier
-     * @param search search users by firstName, lastName or username
-     * @param role defines role type
-     * @param languageId language identifier
-     * @param limit maximum number of items to retrieve (default 25)
-     * @param offset starting offset in the collection (default 0)
-     */
-    listProjectMembers(projectId, search, role, languageId, limit, offset) {
+    listProjectMembers(projectId, searchOrRequest, role, languageId, limit, offset) {
         let url = `${this.url}/projects/${projectId}/members`;
-        url = this.addQueryParam(url, 'search', search);
-        url = this.addQueryParam(url, 'role', role);
-        url = this.addQueryParam(url, 'languageId', languageId);
-        return this.getList(url, limit, offset);
+        let request;
+        if (searchOrRequest && typeof searchOrRequest === 'object') {
+            request = searchOrRequest;
+        }
+        else {
+            request = { search: searchOrRequest, role, languageId, limit, offset };
+        }
+        url = this.addQueryParam(url, 'search', request.search);
+        url = this.addQueryParam(url, 'role', request.role);
+        url = this.addQueryParam(url, 'languageId', request.languageId);
+        return this.getList(url, request.limit, request.offset);
     }
     /**
      *
@@ -4265,19 +6588,19 @@ class Users extends core_1.CrowdinApi {
         const url = `${this.url}/projects/${projectId}/members/${memberId}`;
         return this.delete(url, this.defaultConfig());
     }
-    /**
-     * @param status filter users by status
-     * @param search search users by firstName, lastName, username, email
-     * @param twoFactor filter users by two-factor authentication status
-     * @param limit maximum number of items to retrieve (default 25)
-     * @param offset starting offset in the collection (default 0)
-     */
-    listUsers(status, search, twoFactor, limit, offset) {
+    listUsers(statusOrRequest, search, twoFactor, limit, offset) {
         let url = `${this.url}/users`;
-        url = this.addQueryParam(url, 'status', status);
-        url = this.addQueryParam(url, 'search', search);
-        url = this.addQueryParam(url, 'twoFactor', twoFactor);
-        return this.getList(url, limit, offset);
+        let request;
+        if (statusOrRequest && typeof statusOrRequest === 'object') {
+            request = statusOrRequest;
+        }
+        else {
+            request = { status: statusOrRequest, search, twoFactor, limit, offset };
+        }
+        url = this.addQueryParam(url, 'status', request.status);
+        url = this.addQueryParam(url, 'search', request.search);
+        url = this.addQueryParam(url, 'twoFactor', request.twoFactor);
+        return this.getList(url, request.limit, request.offset);
     }
     /**
      * @param userId user identifier
@@ -4434,15 +6757,17 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Workflows = void 0;
 const core_1 = __nccwpck_require__(4735);
 class Workflows extends core_1.CrowdinApi {
-    /**
-     * @param groupId group identifier
-     * @param limit maximum number of items to retrieve (default 25)
-     * @param offset starting offset in the collection (default 0)
-     */
-    listWorkflowTemplates(groupId, limit, offset) {
+    listWorkflowTemplates(groupIdOrRequest, limit, offset) {
         let url = `${this.url}/workflow-templates`;
-        url = this.addQueryParam(url, 'groupId', groupId);
-        return this.getList(url, limit, offset);
+        let request;
+        if (groupIdOrRequest && typeof groupIdOrRequest === 'object') {
+            request = groupIdOrRequest;
+        }
+        else {
+            request = { groupId: groupIdOrRequest, limit, offset };
+        }
+        url = this.addQueryParam(url, 'groupId', request.groupId);
+        return this.getList(url, request.limit, request.offset);
     }
     /**
      * @param templateId workflow template identifier
@@ -4465,39 +6790,37 @@ const pth = __nccwpck_require__(5622);
 const ZipEntry = __nccwpck_require__(847);
 const ZipFile = __nccwpck_require__(3019);
 
-const fs = Utils.FileSystem.require();
-fs.existsSync = fs.existsSync || pth.existsSync;
+const get_Bool = (val, def) => (typeof val === "boolean" ? val : def);
+const get_Str = (val, def) => (typeof val === "string" ? val : def);
 
 const defaultOptions = {
+    // option "noSort" : if true it disables files sorting
+    noSort: false,
     // read entries during load (initial loading may be slower)
     readEntries: false,
     // default method is none
-    method: Utils.Constants.NONE
-}
+    method: Utils.Constants.NONE,
+    // file system
+    fs: null
+};
 
-function canonical(p) {
-    // trick normalize think path is absolute
-    var safeSuffix = pth.posix.normalize("/" + p.split("\\").join("/"));
-    return pth.join(".", safeSuffix);
-}
-
-module.exports = function (/**String*/input, /** object */options) {
+module.exports = function (/**String*/ input, /** object */ options) {
     let inBuffer = null;
 
     // create object based default options, allowing them to be overwritten
-    const opts = Object.assign(Object.create( null ), defaultOptions);
+    const opts = Object.assign(Object.create(null), defaultOptions);
 
     // test input variable
-    if (input && "object" === typeof input){
+    if (input && "object" === typeof input) {
         // if value is not buffer we accept it to be object with options
-        if (!(input instanceof Uint8Array)){
+        if (!(input instanceof Uint8Array)) {
             Object.assign(opts, input);
             input = opts.input ? opts.input : undefined;
             if (opts.input) delete opts.input;
         }
 
         // if input is buffer
-        if (input instanceof Uint8Array){
+        if (Buffer.isBuffer(input)) {
             inBuffer = input;
             opts.method = Utils.Constants.BUFFER;
             input = undefined;
@@ -4507,13 +6830,16 @@ module.exports = function (/**String*/input, /** object */options) {
     // assign options
     Object.assign(opts, options);
 
+    // instanciate utils filesystem
+    const filetools = new Utils(opts);
+
     // if input is file name we retrieve its content
     if (input && "string" === typeof input) {
         // load zip file
-        if (fs.existsSync(input)) {
+        if (filetools.fs.existsSync(input)) {
             opts.method = Utils.Constants.FILE;
             opts.filename = input;
-            inBuffer = fs.readFileSync(input);
+            inBuffer = filetools.fs.readFileSync(input);
         } else {
             throw new Error(Utils.Errors.INVALID_FILENAME);
         }
@@ -4522,256 +6848,247 @@ module.exports = function (/**String*/input, /** object */options) {
     // create variable
     const _zip = new ZipFile(inBuffer, opts);
 
-    function sanitize(prefix, name) {
-        prefix = pth.resolve(pth.normalize(prefix));
-        var parts = name.split('/');
-        for (var i = 0, l = parts.length; i < l; i++) {
-            var path = pth.normalize(pth.join(prefix, parts.slice(i, l).join(pth.sep)));
-            if (path.indexOf(prefix) === 0) {
-                return path;
+    const { canonical, sanitize } = Utils;
+
+    function getEntry(/**Object*/ entry) {
+        if (entry && _zip) {
+            var item;
+            // If entry was given as a file name
+            if (typeof entry === "string") item = _zip.getEntry(entry);
+            // if entry was given as a ZipEntry object
+            if (typeof entry === "object" && typeof entry.entryName !== "undefined" && typeof entry.header !== "undefined") item = _zip.getEntry(entry.entryName);
+
+            if (item) {
+                return item;
             }
         }
-        return pth.normalize(pth.join(prefix, pth.basename(name)));
+        return null;
     }
 
-	function getEntry(/**Object*/entry) {
-		if (entry && _zip) {
-			var item;
-			// If entry was given as a file name
-			if (typeof entry === "string")
-				item = _zip.getEntry(entry);
-			// if entry was given as a ZipEntry object
-			if (typeof entry === "object" && typeof entry.entryName !== "undefined" && typeof entry.header !== "undefined")
-				item = _zip.getEntry(entry.entryName);
-
-			if (item) {
-				return item;
-			}
-		}
-		return null;
-	}
-
-    function fixPath(zipPath){
+    function fixPath(zipPath) {
         const { join, normalize, sep } = pth.posix;
         // convert windows file separators and normalize
         return join(".", normalize(sep + zipPath.split("\\").join(sep) + sep));
     }
 
-	return {
-		/**
-		 * Extracts the given entry from the archive and returns the content as a Buffer object
-		 * @param entry ZipEntry object or String with the full path of the entry
-		 *
-		 * @return Buffer or Null in case of error
-		 */
-		readFile: function (/**Object*/entry, /*String, Buffer*/pass) {
-			var item = getEntry(entry);
-			return item && item.getData(pass) || null;
-		},
+    return {
+        /**
+         * Extracts the given entry from the archive and returns the content as a Buffer object
+         * @param entry ZipEntry object or String with the full path of the entry
+         *
+         * @return Buffer or Null in case of error
+         */
+        readFile: function (/**Object*/ entry, /*String, Buffer*/ pass) {
+            var item = getEntry(entry);
+            return (item && item.getData(pass)) || null;
+        },
 
-		/**
-		 * Asynchronous readFile
-		 * @param entry ZipEntry object or String with the full path of the entry
-		 * @param callback
-		 *
-		 * @return Buffer or Null in case of error
-		 */
-		readFileAsync: function (/**Object*/entry, /**Function*/callback) {
-			var item = getEntry(entry);
-			if (item) {
-				item.getDataAsync(callback);
-			} else {
-				callback(null, "getEntry failed for:" + entry)
-			}
-		},
+        /**
+         * Asynchronous readFile
+         * @param entry ZipEntry object or String with the full path of the entry
+         * @param callback
+         *
+         * @return Buffer or Null in case of error
+         */
+        readFileAsync: function (/**Object*/ entry, /**Function*/ callback) {
+            var item = getEntry(entry);
+            if (item) {
+                item.getDataAsync(callback);
+            } else {
+                callback(null, "getEntry failed for:" + entry);
+            }
+        },
 
-		/**
-		 * Extracts the given entry from the archive and returns the content as plain text in the given encoding
-		 * @param entry ZipEntry object or String with the full path of the entry
-		 * @param encoding Optional. If no encoding is specified utf8 is used
-		 *
-		 * @return String
-		 */
-		readAsText: function (/**Object*/entry, /**String=*/encoding) {
-			var item = getEntry(entry);
-			if (item) {
-				var data = item.getData();
-				if (data && data.length) {
-					return data.toString(encoding || "utf8");
-				}
-			}
-			return "";
-		},
+        /**
+         * Extracts the given entry from the archive and returns the content as plain text in the given encoding
+         * @param entry ZipEntry object or String with the full path of the entry
+         * @param encoding Optional. If no encoding is specified utf8 is used
+         *
+         * @return String
+         */
+        readAsText: function (/**Object*/ entry, /**String=*/ encoding) {
+            var item = getEntry(entry);
+            if (item) {
+                var data = item.getData();
+                if (data && data.length) {
+                    return data.toString(encoding || "utf8");
+                }
+            }
+            return "";
+        },
 
-		/**
-		 * Asynchronous readAsText
-		 * @param entry ZipEntry object or String with the full path of the entry
-		 * @param callback
-		 * @param encoding Optional. If no encoding is specified utf8 is used
-		 *
-		 * @return String
-		 */
-		readAsTextAsync: function (/**Object*/entry, /**Function*/callback, /**String=*/encoding) {
-			var item = getEntry(entry);
-			if (item) {
-				item.getDataAsync(function (data, err) {
-					if (err) {
-						callback(data, err);
-						return;
-					}
+        /**
+         * Asynchronous readAsText
+         * @param entry ZipEntry object or String with the full path of the entry
+         * @param callback
+         * @param encoding Optional. If no encoding is specified utf8 is used
+         *
+         * @return String
+         */
+        readAsTextAsync: function (/**Object*/ entry, /**Function*/ callback, /**String=*/ encoding) {
+            var item = getEntry(entry);
+            if (item) {
+                item.getDataAsync(function (data, err) {
+                    if (err) {
+                        callback(data, err);
+                        return;
+                    }
 
-					if (data && data.length) {
-						callback(data.toString(encoding || "utf8"));
-					} else {
-						callback("");
-					}
-				})
-			} else {
-				callback("");
-			}
-		},
+                    if (data && data.length) {
+                        callback(data.toString(encoding || "utf8"));
+                    } else {
+                        callback("");
+                    }
+                });
+            } else {
+                callback("");
+            }
+        },
 
-		/**
-		 * Remove the entry from the file or the entry and all it's nested directories and files if the given entry is a directory
-		 *
-		 * @param entry
-		 */
-		deleteFile: function (/**Object*/entry) { // @TODO: test deleteFile
-			var item = getEntry(entry);
-			if (item) {
-				_zip.deleteEntry(item.entryName);
-			}
-		},
+        /**
+         * Remove the entry from the file or the entry and all it's nested directories and files if the given entry is a directory
+         *
+         * @param entry
+         */
+        deleteFile: function (/**Object*/ entry) {
+            // @TODO: test deleteFile
+            var item = getEntry(entry);
+            if (item) {
+                _zip.deleteEntry(item.entryName);
+            }
+        },
 
-		/**
-		 * Adds a comment to the zip. The zip must be rewritten after adding the comment.
-		 *
-		 * @param comment
-		 */
-		addZipComment: function (/**String*/comment) { // @TODO: test addZipComment
-			_zip.comment = comment;
-		},
+        /**
+         * Adds a comment to the zip. The zip must be rewritten after adding the comment.
+         *
+         * @param comment
+         */
+        addZipComment: function (/**String*/ comment) {
+            // @TODO: test addZipComment
+            _zip.comment = comment;
+        },
 
-		/**
-		 * Returns the zip comment
-		 *
-		 * @return String
-		 */
-		getZipComment: function () {
-			return _zip.comment || '';
-		},
+        /**
+         * Returns the zip comment
+         *
+         * @return String
+         */
+        getZipComment: function () {
+            return _zip.comment || "";
+        },
 
-		/**
-		 * Adds a comment to a specified zipEntry. The zip must be rewritten after adding the comment
-		 * The comment cannot exceed 65535 characters in length
-		 *
-		 * @param entry
-		 * @param comment
-		 */
-		addZipEntryComment: function (/**Object*/entry, /**String*/comment) {
-			var item = getEntry(entry);
-			if (item) {
-				item.comment = comment;
-			}
-		},
+        /**
+         * Adds a comment to a specified zipEntry. The zip must be rewritten after adding the comment
+         * The comment cannot exceed 65535 characters in length
+         *
+         * @param entry
+         * @param comment
+         */
+        addZipEntryComment: function (/**Object*/ entry, /**String*/ comment) {
+            var item = getEntry(entry);
+            if (item) {
+                item.comment = comment;
+            }
+        },
 
-		/**
-		 * Returns the comment of the specified entry
-		 *
-		 * @param entry
-		 * @return String
-		 */
-		getZipEntryComment: function (/**Object*/entry) {
-			var item = getEntry(entry);
-			if (item) {
-				return item.comment || '';
-			}
-			return ''
-		},
+        /**
+         * Returns the comment of the specified entry
+         *
+         * @param entry
+         * @return String
+         */
+        getZipEntryComment: function (/**Object*/ entry) {
+            var item = getEntry(entry);
+            if (item) {
+                return item.comment || "";
+            }
+            return "";
+        },
 
-		/**
-		 * Updates the content of an existing entry inside the archive. The zip must be rewritten after updating the content
-		 *
-		 * @param entry
-		 * @param content
-		 */
-		updateFile: function (/**Object*/entry, /**Buffer*/content) {
-			var item = getEntry(entry);
-			if (item) {
-				item.setData(content);
-			}
-		},
+        /**
+         * Updates the content of an existing entry inside the archive. The zip must be rewritten after updating the content
+         *
+         * @param entry
+         * @param content
+         */
+        updateFile: function (/**Object*/ entry, /**Buffer*/ content) {
+            var item = getEntry(entry);
+            if (item) {
+                item.setData(content);
+            }
+        },
 
-		/**
-		 * Adds a file from the disk to the archive
-		 *
-		 * @param localPath File to add to zip
-		 * @param zipPath Optional path inside the zip
-		 * @param zipName Optional name for the file
-		 */
-		addLocalFile: function (/**String*/localPath, /**String=*/zipPath, /**String=*/zipName, /**String*/comment) {
-			if (fs.existsSync(localPath)) {
-				// fix ZipPath
-				zipPath = (zipPath) ? fixPath(zipPath) : "";
+        /**
+         * Adds a file from the disk to the archive
+         *
+         * @param localPath File to add to zip
+         * @param zipPath Optional path inside the zip
+         * @param zipName Optional name for the file
+         */
+        addLocalFile: function (/**String*/ localPath, /**String=*/ zipPath, /**String=*/ zipName, /**String*/ comment) {
+            if (filetools.fs.existsSync(localPath)) {
+                // fix ZipPath
+                zipPath = zipPath ? fixPath(zipPath) : "";
 
-				// p - local file name
-				var p = localPath.split("\\").join("/").split("/").pop();
+                // p - local file name
+                var p = localPath.split("\\").join("/").split("/").pop();
 
-				// add file name into zippath
-				zipPath += (zipName) ? zipName : p;
+                // add file name into zippath
+                zipPath += zipName ? zipName : p;
 
-				// read file attributes
-				const _attr = fs.statSync(localPath);
+                // read file attributes
+                const _attr = filetools.fs.statSync(localPath);
 
-				// add file into zip file
-				this.addFile(zipPath, fs.readFileSync(localPath), comment, _attr)
-			} else {
-				throw new Error(Utils.Errors.FILE_NOT_FOUND.replace("%s", localPath));
-			}
-		},
+                // add file into zip file
+                this.addFile(zipPath, filetools.fs.readFileSync(localPath), comment, _attr);
+            } else {
+                throw new Error(Utils.Errors.FILE_NOT_FOUND.replace("%s", localPath));
+            }
+        },
 
-		/**
-		 * Adds a local directory and all its nested files and directories to the archive
-		 *
-		 * @param localPath
-		 * @param zipPath optional path inside zip
-		 * @param filter optional RegExp or Function if files match will
-		 *               be included.
-		 */
-        addLocalFolder: function (/**String*/localPath, /**String=*/zipPath, /**=RegExp|Function*/filter) {
+        /**
+         * Adds a local directory and all its nested files and directories to the archive
+         *
+         * @param localPath
+         * @param zipPath optional path inside zip
+         * @param filter optional RegExp or Function if files match will
+         *               be included.
+         */
+        addLocalFolder: function (/**String*/ localPath, /**String=*/ zipPath, /**=RegExp|Function*/ filter) {
             // Prepare filter
-            if (filter instanceof RegExp) {                 // if filter is RegExp wrap it
-                filter = (function (rx){
+            if (filter instanceof RegExp) {
+                // if filter is RegExp wrap it
+                filter = (function (rx) {
                     return function (filename) {
                         return rx.test(filename);
-                    }
+                    };
                 })(filter);
-            } else if ('function' !== typeof filter) {       // if filter is not function we will replace it
+            } else if ("function" !== typeof filter) {
+                // if filter is not function we will replace it
                 filter = function () {
                     return true;
                 };
             }
 
             // fix ZipPath
-            zipPath = (zipPath) ? fixPath(zipPath) : "";
+            zipPath = zipPath ? fixPath(zipPath) : "";
 
             // normalize the path first
             localPath = pth.normalize(localPath);
 
-            if (fs.existsSync(localPath)) {
-
-                var items = Utils.findFiles(localPath),
-                    self = this;
+            if (filetools.fs.existsSync(localPath)) {
+                const items = filetools.findFiles(localPath);
+                const self = this;
 
                 if (items.length) {
                     items.forEach(function (filepath) {
                         var p = pth.relative(localPath, filepath).split("\\").join("/"); //windows fix
                         if (filter(p)) {
-                            var stats = fs.statSync(filepath);
+                            var stats = filetools.fs.statSync(filepath);
                             if (stats.isFile()) {
-                                self.addFile(zipPath + p, fs.readFileSync(filepath), "", stats);
+                                self.addFile(zipPath + p, filetools.fs.readFileSync(filepath), "", stats);
                             } else {
-                                self.addFile(zipPath + p + '/', Buffer.alloc(0), "", stats);
+                                self.addFile(zipPath + p + "/", Buffer.alloc(0), "", stats);
                             }
                         }
                     });
@@ -4781,15 +7098,15 @@ module.exports = function (/**String*/input, /** object */options) {
             }
         },
 
-		/**
-		 * Asynchronous addLocalFile
-		 * @param localPath
-		 * @param callback
-		 * @param zipPath optional path inside zip
-		 * @param filter optional RegExp or Function if files match will
-		 *               be included.
-		 */
-        addLocalFolderAsync: function (/*String*/localPath, /*Function*/callback, /*String*/zipPath, /*RegExp|Function*/filter) {
+        /**
+         * Asynchronous addLocalFile
+         * @param localPath
+         * @param callback
+         * @param zipPath optional path inside zip
+         * @param filter optional RegExp or Function if files match will
+         *               be included.
+         */
+        addLocalFolderAsync: function (/*String*/ localPath, /*Function*/ callback, /*String*/ zipPath, /*RegExp|Function*/ filter) {
             if (filter instanceof RegExp) {
                 filter = (function (rx) {
                     return function (filename) {
@@ -4809,13 +7126,13 @@ module.exports = function (/**String*/input, /** object */options) {
             localPath = pth.normalize(localPath);
 
             var self = this;
-            fs.open(localPath, 'r', function (err) {
-                if (err && err.code === 'ENOENT') {
+            filetools.fs.open(localPath, "r", function (err) {
+                if (err && err.code === "ENOENT") {
                     callback(undefined, Utils.Errors.FILE_NOT_FOUND.replace("%s", localPath));
                 } else if (err) {
                     callback(undefined, err);
                 } else {
-                    var items = Utils.findFiles(localPath);
+                    var items = filetools.findFiles(localPath);
                     var i = -1;
 
                     var next = function () {
@@ -4823,12 +7140,15 @@ module.exports = function (/**String*/input, /** object */options) {
                         if (i < items.length) {
                             var filepath = items[i];
                             var p = pth.relative(localPath, filepath).split("\\").join("/"); //windows fix
-                            p = p.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7E]/g, '') // accent fix
+                            p = p
+                                .normalize("NFD")
+                                .replace(/[\u0300-\u036f]/g, "")
+                                .replace(/[^\x20-\x7E]/g, ""); // accent fix
                             if (filter(p)) {
-                                fs.stat(filepath, function (er0, stats) {
+                                filetools.fs.stat(filepath, function (er0, stats) {
                                     if (er0) callback(undefined, er0);
                                     if (stats.isFile()) {
-                                        fs.readFile(filepath, function (er1, data) {
+                                        filetools.fs.readFile(filepath, function (er1, data) {
                                             if (er1) {
                                                 callback(undefined, er1);
                                             } else {
@@ -4844,25 +7164,34 @@ module.exports = function (/**String*/input, /** object */options) {
                             } else {
                                 next();
                             }
-
                         } else {
                             callback(true, undefined);
                         }
-                    }
+                    };
 
                     next();
                 }
             });
         },
 
-        addLocalFolderPromise: function (/*String*/ localPath, /* object */ options) {
+        /**
+         *
+         * @param {string} localPath - path where files will be extracted
+         * @param {object} props - optional properties
+         * @param {string} props.zipPath - optional path inside zip
+         * @param {regexp, function} props.filter - RegExp or Function if files match will be included.
+         */
+        addLocalFolderPromise: function (/*String*/ localPath, /* object */ props) {
             return new Promise((resolve, reject) => {
-                const { filter, zipPath } = Object.assign({}, options);
-                this.addLocalFolderAsync(localPath,
+                const { filter, zipPath } = Object.assign({}, props);
+                this.addLocalFolderAsync(
+                    localPath,
                     (done, err) => {
                         if (err) reject(err);
                         if (done) resolve(this);
-                    }, zipPath, filter
+                    },
+                    zipPath,
+                    filter
                 );
             });
         },
@@ -4882,36 +7211,39 @@ module.exports = function (/**String*/input, /** object */options) {
             const update = entry != null;
 
             // prepare new entry
-            if (!update){
+            if (!update) {
                 entry = new ZipEntry();
                 entry.entryName = entryName;
             }
             entry.comment = comment || "";
 
-            const isStat = ('object' === typeof attr) && (attr instanceof fs.Stats);
+            const isStat = "object" === typeof attr && attr instanceof filetools.fs.Stats;
 
             // last modification time from file stats
-            if (isStat){
+            if (isStat) {
                 entry.header.time = attr.mtime;
             }
 
             // Set file attribute
-            var fileattr = (entry.isDirectory) ? 0x10 : 0;  // (MS-DOS directory flag)
+            var fileattr = entry.isDirectory ? 0x10 : 0; // (MS-DOS directory flag)
 
             // extended attributes field for Unix
-            if('win32' !== process.platform){
+            if (!Utils.isWin) {
                 // set file type either S_IFDIR / S_IFREG
-                let unix = (entry.isDirectory) ? 0x4000 : 0x8000;
+                let unix = entry.isDirectory ? 0x4000 : 0x8000;
 
-                if (isStat) {                                       // File attributes from file stats
-                    unix |= (0xfff & attr.mode);
-                }else if ('number' === typeof attr){                // attr from given attr values
-                    unix |= (0xfff & attr);
-                }else{                                              // Default values:
-                    unix |= (entry.isDirectory) ? 0o755 : 0o644;    // permissions (drwxr-xr-x) or (-r-wr--r--)
+                if (isStat) {
+                    // File attributes from file stats
+                    unix |= 0xfff & attr.mode;
+                } else if ("number" === typeof attr) {
+                    // attr from given attr values
+                    unix |= 0xfff & attr;
+                } else {
+                    // Default values:
+                    unix |= entry.isDirectory ? 0o755 : 0o644; // permissions (drwxr-xr-x) or (-r-wr--r--)
                 }
 
-                fileattr = (fileattr | (unix << 16)) >>> 0;         // add attributes
+                fileattr = (fileattr | (unix << 16)) >>> 0; // add attributes
             }
 
             entry.attr = fileattr;
@@ -4920,245 +7252,288 @@ module.exports = function (/**String*/input, /** object */options) {
             if (!update) _zip.setEntry(entry);
         },
 
-		/**
-		 * Returns an array of ZipEntry objects representing the files and folders inside the archive
-		 *
-		 * @return Array
-		 */
-		getEntries: function () {
-			if (_zip) {
-				return _zip.entries;
-			} else {
-				return [];
-			}
-		},
+        /**
+         * Returns an array of ZipEntry objects representing the files and folders inside the archive
+         *
+         * @return Array
+         */
+        getEntries: function () {
+            return _zip ? _zip.entries : [];
+        },
 
-		/**
-		 * Returns a ZipEntry object representing the file or folder specified by ``name``.
-		 *
-		 * @param name
-		 * @return ZipEntry
-		 */
-		getEntry: function (/**String*/name) {
-			return getEntry(name);
-		},
+        /**
+         * Returns a ZipEntry object representing the file or folder specified by ``name``.
+         *
+         * @param name
+         * @return ZipEntry
+         */
+        getEntry: function (/**String*/ name) {
+            return getEntry(name);
+        },
 
-		getEntryCount: function() {
-			return _zip.getEntryCount();
-		},
+        getEntryCount: function () {
+            return _zip.getEntryCount();
+        },
 
-		forEach: function(callback) {
-			return _zip.forEach(callback);
-		},
+        forEach: function (callback) {
+            return _zip.forEach(callback);
+        },
 
-		/**
-		 * Extracts the given entry to the given targetPath
-		 * If the entry is a directory inside the archive, the entire directory and it's subdirectories will be extracted
-		 *
-		 * @param entry ZipEntry object or String with the full path of the entry
-		 * @param targetPath Target folder where to write the file
-		 * @param maintainEntryPath If maintainEntryPath is true and the entry is inside a folder, the entry folder
-		 *                          will be created in targetPath as well. Default is TRUE
-		 * @param overwrite If the file already exists at the target path, the file will be overwriten if this is true.
-		 *                  Default is FALSE
+        /**
+         * Extracts the given entry to the given targetPath
+         * If the entry is a directory inside the archive, the entire directory and it's subdirectories will be extracted
+         *
+         * @param entry ZipEntry object or String with the full path of the entry
+         * @param targetPath Target folder where to write the file
+         * @param maintainEntryPath If maintainEntryPath is true and the entry is inside a folder, the entry folder
+         *                          will be created in targetPath as well. Default is TRUE
+         * @param overwrite If the file already exists at the target path, the file will be overwriten if this is true.
+         *                  Default is FALSE
+         * @param keepOriginalPermission The file will be set as the permission from the entry if this is true.
+         *                  Default is FALSE
          * @param outFileName String If set will override the filename of the extracted file (Only works if the entry is a file)
-		 *
-		 * @return Boolean
-		 */
-		extractEntryTo: function (/**Object*/entry, /**String*/targetPath, /**Boolean*/maintainEntryPath, /**Boolean*/overwrite, /**String**/outFileName) {
-			overwrite = overwrite || false;
-			maintainEntryPath = typeof maintainEntryPath === "undefined" ? true : maintainEntryPath;
+         *
+         * @return Boolean
+         */
+        extractEntryTo: function (
+            /**Object*/ entry,
+            /**String*/ targetPath,
+            /**Boolean*/ maintainEntryPath,
+            /**Boolean*/ overwrite,
+            /**Boolean*/ keepOriginalPermission,
+            /**String**/ outFileName
+        ) {
+            overwrite = get_Bool(overwrite, false);
+            keepOriginalPermission = get_Bool(keepOriginalPermission, false);
+            maintainEntryPath = get_Bool(maintainEntryPath, true);
+            outFileName = get_Str(outFileName, get_Str(keepOriginalPermission, undefined));
 
-			var item = getEntry(entry);
-			if (!item) {
-				throw new Error(Utils.Errors.NO_ENTRY);
-			}
+            var item = getEntry(entry);
+            if (!item) {
+                throw new Error(Utils.Errors.NO_ENTRY);
+            }
 
-			var entryName = canonical(item.entryName);
+            var entryName = canonical(item.entryName);
 
-			var target = sanitize(targetPath,outFileName && !item.isDirectory ? outFileName : (maintainEntryPath ? entryName : pth.basename(entryName)));
+            var target = sanitize(targetPath, outFileName && !item.isDirectory ? outFileName : maintainEntryPath ? entryName : pth.basename(entryName));
 
-			if (item.isDirectory) {
-				target = pth.resolve(target, "..");
-				var children = _zip.getEntryChildren(item);
-				children.forEach(function (child) {
-					if (child.isDirectory) return;
-					var content = child.getData();
-					if (!content) {
-						throw new Error(Utils.Errors.CANT_EXTRACT_FILE);
-					}
-					var name = canonical(child.entryName)
-					var childName = sanitize(targetPath, maintainEntryPath ? name : pth.basename(name));
-					// The reverse operation for attr depend on method addFile()
-					var fileAttr = child.attr ? (((child.attr >>> 0) | 0) >> 16) & 0xfff : 0;
-					Utils.writeFileTo(childName, content, overwrite, fileAttr);
-				});
-				return true;
-			}
+            if (item.isDirectory) {
+                var children = _zip.getEntryChildren(item);
+                children.forEach(function (child) {
+                    if (child.isDirectory) return;
+                    var content = child.getData();
+                    if (!content) {
+                        throw new Error(Utils.Errors.CANT_EXTRACT_FILE);
+                    }
+                    var name = canonical(child.entryName);
+                    var childName = sanitize(targetPath, maintainEntryPath ? name : pth.basename(name));
+                    // The reverse operation for attr depend on method addFile()
+                    const fileAttr = keepOriginalPermission ? child.header.fileAttr : undefined;
+                    filetools.writeFileTo(childName, content, overwrite, fileAttr);
+                });
+                return true;
+            }
 
-			var content = item.getData();
-			if (!content) throw new Error(Utils.Errors.CANT_EXTRACT_FILE);
+            var content = item.getData();
+            if (!content) throw new Error(Utils.Errors.CANT_EXTRACT_FILE);
 
-			if (fs.existsSync(target) && !overwrite) {
-				throw new Error(Utils.Errors.CANT_OVERRIDE);
-			}
-			// The reverse operation for attr depend on method addFile()
-			var fileAttr = item.attr ? (((item.attr >>> 0) | 0) >> 16) & 0xfff : 0;
-			Utils.writeFileTo(target, content, overwrite, fileAttr);
+            if (filetools.fs.existsSync(target) && !overwrite) {
+                throw new Error(Utils.Errors.CANT_OVERRIDE);
+            }
+            // The reverse operation for attr depend on method addFile()
+            const fileAttr = keepOriginalPermission ? entry.header.fileAttr : undefined;
+            filetools.writeFileTo(target, content, overwrite, fileAttr);
 
-			return true;
-		},
+            return true;
+        },
 
-		/**
-		 * Test the archive
-		 *
-		 */
-		test: function (pass) {
-			if (!_zip) {
-				return false;
-			}
+        /**
+         * Test the archive
+         *
+         */
+        test: function (pass) {
+            if (!_zip) {
+                return false;
+            }
 
-			for (var entry in _zip.entries) {
-				try {
-					if (entry.isDirectory) {
-						continue;
-					}
-					var content = _zip.entries[entry].getData(pass);
-					if (!content) {
-						return false;
-					}
-				} catch (err) {
-					return false;
-				}
-			}
-			return true;
-		},
+            for (var entry in _zip.entries) {
+                try {
+                    if (entry.isDirectory) {
+                        continue;
+                    }
+                    var content = _zip.entries[entry].getData(pass);
+                    if (!content) {
+                        return false;
+                    }
+                } catch (err) {
+                    return false;
+                }
+            }
+            return true;
+        },
 
-		/**
-		 * Extracts the entire archive to the given location
-		 *
-		 * @param targetPath Target location
-		 * @param overwrite If the file already exists at the target path, the file will be overwriten if this is true.
-		 *                  Default is FALSE
-		 */
-		extractAllTo: function (/**String*/targetPath, /**Boolean*/overwrite, /*String, Buffer*/pass) {
-			overwrite = overwrite || false;
-			if (!_zip) {
-				throw new Error(Utils.Errors.NO_ZIP);
-			}
-			_zip.entries.forEach(function (entry) {
-				var entryName = sanitize(targetPath, canonical(entry.entryName.toString()));
-				if (entry.isDirectory) {
-					Utils.makeDir(entryName);
-					return;
-				}
-				var content = entry.getData(pass);
-				if (!content) {
-					throw new Error(Utils.Errors.CANT_EXTRACT_FILE);
-				}
-				// The reverse operation for attr depend on method addFile()
-				var fileAttr = entry.attr ? (((entry.attr >>> 0) | 0) >> 16) & 0xfff : 0;
-				Utils.writeFileTo(entryName, content, overwrite, fileAttr);
-				try {
-					fs.utimesSync(entryName, entry.header.time, entry.header.time)
-				} catch (err) {
-					throw new Error(Utils.Errors.CANT_EXTRACT_FILE);
-				}
-			})
-		},
+        /**
+         * Extracts the entire archive to the given location
+         *
+         * @param targetPath Target location
+         * @param overwrite If the file already exists at the target path, the file will be overwriten if this is true.
+         *                  Default is FALSE
+         * @param keepOriginalPermission The file will be set as the permission from the entry if this is true.
+         *                  Default is FALSE
+         */
+        extractAllTo: function (/**String*/ targetPath, /**Boolean*/ overwrite, /**Boolean*/ keepOriginalPermission, /*String, Buffer*/ pass) {
+            overwrite = get_Bool(overwrite, false);
+            pass = get_Str(keepOriginalPermission, pass);
+            keepOriginalPermission = get_Bool(keepOriginalPermission, false);
+            if (!_zip) {
+                throw new Error(Utils.Errors.NO_ZIP);
+            }
+            _zip.entries.forEach(function (entry) {
+                var entryName = sanitize(targetPath, canonical(entry.entryName.toString()));
+                if (entry.isDirectory) {
+                    filetools.makeDir(entryName);
+                    return;
+                }
+                var content = entry.getData(pass);
+                if (!content) {
+                    throw new Error(Utils.Errors.CANT_EXTRACT_FILE);
+                }
+                // The reverse operation for attr depend on method addFile()
+                const fileAttr = keepOriginalPermission ? entry.header.fileAttr : undefined;
+                filetools.writeFileTo(entryName, content, overwrite, fileAttr);
+                try {
+                    filetools.fs.utimesSync(entryName, entry.header.time, entry.header.time);
+                } catch (err) {
+                    throw new Error(Utils.Errors.CANT_EXTRACT_FILE);
+                }
+            });
+        },
 
-		/**
-		 * Asynchronous extractAllTo
-		 *
-		 * @param targetPath Target location
-		 * @param overwrite If the file already exists at the target path, the file will be overwriten if this is true.
-		 *                  Default is FALSE
-		 * @param callback
-		 */
-		extractAllToAsync: function (/**String*/targetPath, /**Boolean*/overwrite, /**Function*/callback) {
-			if (!callback) {
-				callback = function() {}
-			}
-			overwrite = overwrite || false;
-			if (!_zip) {
-				callback(new Error(Utils.Errors.NO_ZIP));
-				return;
-			}
+        /**
+         * Asynchronous extractAllTo
+         *
+         * @param targetPath Target location
+         * @param overwrite If the file already exists at the target path, the file will be overwriten if this is true.
+         *                  Default is FALSE
+         * @param keepOriginalPermission The file will be set as the permission from the entry if this is true.
+         *                  Default is FALSE
+         * @param callback The callback will be executed when all entries are extracted successfully or any error is thrown.
+         */
+        extractAllToAsync: function (/**String*/ targetPath, /**Boolean*/ overwrite, /**Boolean*/ keepOriginalPermission, /**Function*/ callback) {
+            if (!callback) {
+                callback = function () {};
+            }
+            overwrite = get_Bool(overwrite, false);
+            if (typeof keepOriginalPermission === "function" && !callback) callback = keepOriginalPermission;
+            keepOriginalPermission = get_Bool(keepOriginalPermission, false);
+            if (!_zip) {
+                callback(new Error(Utils.Errors.NO_ZIP));
+                return;
+            }
 
-			var entries = _zip.entries;
-			var i = entries.length;
-			entries.forEach(function (entry) {
-				if (i <= 0) return; // Had an error already
+            targetPath = pth.resolve(targetPath);
+            // convert entryName to
+            const getPath = (entry) => sanitize(targetPath, pth.normalize(canonical(entry.entryName.toString())));
+            const getError = (msg, file) => new Error(msg + ': "' + file + '"');
 
-				var entryName = pth.normalize(canonical(entry.entryName.toString()));
+            // separate directories from files
+            const dirEntries = [];
+            const fileEntries = new Set();
+            _zip.entries.forEach((e) => {
+                if (e.isDirectory) {
+                    dirEntries.push(e);
+                } else {
+                    fileEntries.add(e);
+                }
+            });
 
-				if (entry.isDirectory) {
-					Utils.makeDir(sanitize(targetPath, entryName));
-					if (--i === 0)
-						callback(undefined);
-					return;
-				}
-				entry.getDataAsync(function (content, err) {
-					if (i <= 0) return;
-					if (err) {
-						callback(new Error(err));
-						return;
-					}
-					if (!content) {
-						i = 0;
-						callback(new Error(Utils.Errors.CANT_EXTRACT_FILE));
-						return;
-					}
+            // Create directory entries first synchronously
+            // this prevents race condition and assures folders are there before writing files
+            for (const entry of dirEntries) {
+                const dirPath = getPath(entry);
+                // The reverse operation for attr depend on method addFile()
+                const dirAttr = keepOriginalPermission ? entry.header.fileAttr : undefined;
+                try {
+                    filetools.makeDir(dirPath);
+                    if (dirAttr) filetools.fs.chmodSync(dirPath, dirAttr);
+                    // in unix timestamp will change if files are later added to folder, but still
+                    filetools.fs.utimesSync(dirPath, entry.header.time, entry.header.time);
+                } catch (er) {
+                    callback(getError("Unable to create folder", dirPath));
+                }
+            }
 
-					// The reverse operation for attr depend on method addFile()
-					var fileAttr = entry.attr ? (((entry.attr >>> 0) | 0) >> 16) & 0xfff : 0;
-					Utils.writeFileToAsync(sanitize(targetPath, entryName), content, overwrite, fileAttr, function (succ) {
-						try {
-							fs.utimesSync(pth.resolve(targetPath, entryName), entry.header.time, entry.header.time);
-						} catch (err) {
-							callback(new Error('Unable to set utimes'));
-						}
-						if (i <= 0) return;
-						if (!succ) {
-							i = 0;
-							callback(new Error('Unable to write'));
-							return;
-						}
-						if (--i === 0)
-							callback(undefined);
-					});
-				});
-			})
-		},
+            // callback wrapper, for some house keeping
+            const done = () => {
+                if (fileEntries.size === 0) {
+                    callback();
+                }
+            };
 
-		/**
-		 * Writes the newly created zip file to disk at the specified location or if a zip was opened and no ``targetFileName`` is provided, it will overwrite the opened zip
-		 *
-		 * @param targetFileName
-		 * @param callback
-		 */
-		writeZip: function (/**String*/targetFileName, /**Function*/callback) {
-			if (arguments.length === 1) {
-				if (typeof targetFileName === "function") {
-					callback = targetFileName;
-					targetFileName = "";
-				}
-			}
+            // Extract file entries asynchronously
+            for (const entry of fileEntries.values()) {
+                const entryName = pth.normalize(canonical(entry.entryName.toString()));
+                const filePath = sanitize(targetPath, entryName);
+                entry.getDataAsync(function (content, err_1) {
+                    if (err_1) {
+                        callback(new Error(err_1));
+                        return;
+                    }
+                    if (!content) {
+                        callback(new Error(Utils.Errors.CANT_EXTRACT_FILE));
+                    } else {
+                        // The reverse operation for attr depend on method addFile()
+                        const fileAttr = keepOriginalPermission ? entry.header.fileAttr : undefined;
+                        filetools.writeFileToAsync(filePath, content, overwrite, fileAttr, function (succ) {
+                            if (!succ) {
+                                callback(getError("Unable to write file", filePath));
+                                return;
+                            }
+                            filetools.fs.utimes(filePath, entry.header.time, entry.header.time, function (err_2) {
+                                if (err_2) {
+                                    callback(getError("Unable to set times", filePath));
+                                    return;
+                                }
+                                fileEntries.delete(entry);
+                                // call the callback if it was last entry
+                                done();
+                            });
+                        });
+                    }
+                });
+            }
+            // call the callback if fileEntries was empty
+            done();
+        },
 
-			if (!targetFileName && opts.filename) {
-				targetFileName = opts.filename;
-			}
-			if (!targetFileName) return;
+        /**
+         * Writes the newly created zip file to disk at the specified location or if a zip was opened and no ``targetFileName`` is provided, it will overwrite the opened zip
+         *
+         * @param targetFileName
+         * @param callback
+         */
+        writeZip: function (/**String*/ targetFileName, /**Function*/ callback) {
+            if (arguments.length === 1) {
+                if (typeof targetFileName === "function") {
+                    callback = targetFileName;
+                    targetFileName = "";
+                }
+            }
 
-			var zipData = _zip.compressToBuffer();
-			if (zipData) {
-				var ok = Utils.writeFileTo(targetFileName, zipData, true);
-				if (typeof callback === 'function') callback(!ok ? new Error("failed") : null, "");
-			}
-		},
+            if (!targetFileName && opts.filename) {
+                targetFileName = opts.filename;
+            }
+            if (!targetFileName) return;
 
-        writeZipPromise: function (/**String*/ targetFileName, /* object */ options) {
-            const { overwrite, perm } = Object.assign({ overwrite: true }, options);
+            var zipData = _zip.compressToBuffer();
+            if (zipData) {
+                var ok = filetools.writeFileTo(targetFileName, zipData, true);
+                if (typeof callback === "function") callback(!ok ? new Error("failed") : null, "");
+            }
+        },
+
+        writeZipPromise: function (/**String*/ targetFileName, /* object */ props) {
+            const { overwrite, perm } = Object.assign({ overwrite: true }, props);
 
             return new Promise((resolve, reject) => {
                 // find file name
@@ -5167,7 +7542,7 @@ module.exports = function (/**String*/input, /** object */options) {
 
                 this.toBufferPromise().then((zipData) => {
                     const ret = (done) => (done ? resolve(done) : reject("ADM-ZIP: Wasn't able to write zip file"));
-                    Utils.writeFileToAsync(targetFileName, zipData, overwrite, perm, ret);
+                    filetools.writeFileToAsync(targetFileName, zipData, overwrite, perm, ret);
                 }, reject);
             });
         },
@@ -5178,20 +7553,20 @@ module.exports = function (/**String*/input, /** object */options) {
             });
         },
 
-		/**
-		 * Returns the content of the entire zip file as a Buffer object
-		 *
-		 * @return Buffer
-		 */
-		toBuffer: function (/**Function=*/onSuccess, /**Function=*/onFail, /**Function=*/onItemStart, /**Function=*/onItemEnd) {
-			this.valueOf = 2;
-			if (typeof onSuccess === "function") {
-				_zip.toAsyncBuffer(onSuccess, onFail, onItemStart, onItemEnd);
-				return null;
-			}
-			return _zip.compressToBuffer()
-		}
-	}
+        /**
+         * Returns the content of the entire zip file as a Buffer object
+         *
+         * @return Buffer
+         */
+        toBuffer: function (/**Function=*/ onSuccess, /**Function=*/ onFail, /**Function=*/ onItemStart, /**Function=*/ onItemEnd) {
+            this.valueOf = 2;
+            if (typeof onSuccess === "function") {
+                _zip.toAsyncBuffer(onSuccess, onFail, onItemStart, onItemEnd);
+                return null;
+            }
+            return _zip.compressToBuffer();
+        }
+    };
 };
 
 
@@ -5205,8 +7580,8 @@ var Utils = __nccwpck_require__(4305),
 
 /* The central directory file header */
 module.exports = function () {
-    var _verMade = 0x14,
-        _version = 0x0A,
+    var _verMade = 20, // v2.0
+        _version = 10, // v1.0
         _flags = 0,
         _method = 0,
         _time = 0,
@@ -5215,49 +7590,61 @@ module.exports = function () {
         _size = 0,
         _fnameLen = 0,
         _extraLen = 0,
-
         _comLen = 0,
         _diskStart = 0,
         _inattr = 0,
         _attr = 0,
         _offset = 0;
 
-    switch(process.platform){
-        case 'win32':
-            _verMade |= 0x0A00;
-        default:
-            _verMade |= 0x0300;
-    }
+    _verMade |= Utils.isWin ? 0x0a00 : 0x0300;
+
+    // Set EFS flag since filename and comment fields are all by default encoded using UTF-8.
+    // Without it file names may be corrupted for other apps when file names use unicode chars
+    _flags |= Constants.FLG_EFS;
 
     var _dataHeader = {};
 
     function setTime(val) {
         val = new Date(val);
-        _time = (val.getFullYear() - 1980 & 0x7f) << 25  // b09-16 years from 1980
-            | (val.getMonth() + 1) << 21                 // b05-08 month
-            | val.getDate() << 16                        // b00-04 hour
-
+        _time =
+            (((val.getFullYear() - 1980) & 0x7f) << 25) | // b09-16 years from 1980
+            ((val.getMonth() + 1) << 21) | // b05-08 month
+            (val.getDate() << 16) | // b00-04 hour
             // 2 bytes time
-            | val.getHours() << 11    // b11-15 hour
-            | val.getMinutes() << 5   // b05-10 minute
-            | val.getSeconds() >> 1;  // b00-04 seconds divided by 2
+            (val.getHours() << 11) | // b11-15 hour
+            (val.getMinutes() << 5) | // b05-10 minute
+            (val.getSeconds() >> 1); // b00-04 seconds divided by 2
     }
 
     setTime(+new Date());
 
     return {
-        get made () { return _verMade; },
-        set made (val) { _verMade = val; },
+        get made() {
+            return _verMade;
+        },
+        set made(val) {
+            _verMade = val;
+        },
 
-        get version () { return _version; },
-        set version (val) { _version = val },
+        get version() {
+            return _version;
+        },
+        set version(val) {
+            _version = val;
+        },
 
-        get flags () { return _flags },
-        set flags (val) { _flags = val; },
+        get flags() {
+            return _flags;
+        },
+        set flags(val) {
+            _flags = val;
+        },
 
-        get method () { return _method; },
-        set method (val) {
-            switch (val){
+        get method() {
+            return _method;
+        },
+        set method(val) {
+            switch (val) {
                 case Constants.STORED:
                     this.version = 10;
                 case Constants.DEFLATED:
@@ -5265,66 +7652,107 @@ module.exports = function () {
                     this.version = 20;
             }
             _method = val;
-            },
-
-        get time () { return new Date(
-            ((_time >> 25) & 0x7f) + 1980,
-            ((_time >> 21) & 0x0f) - 1,
-            (_time >> 16) & 0x1f,
-            (_time >> 11) & 0x1f,
-            (_time >> 5) & 0x3f,
-            (_time & 0x1f) << 1
-        );
         },
-        set time (val) {
+
+        get time() {
+            return new Date(((_time >> 25) & 0x7f) + 1980, ((_time >> 21) & 0x0f) - 1, (_time >> 16) & 0x1f, (_time >> 11) & 0x1f, (_time >> 5) & 0x3f, (_time & 0x1f) << 1);
+        },
+        set time(val) {
             setTime(val);
         },
 
-        get crc () { return _crc; },
-        set crc (val) { _crc = val; },
+        get crc() {
+            return _crc;
+        },
+        set crc(val) {
+            _crc = Math.max(0, val) >>> 0;
+        },
 
-        get compressedSize () { return _compressedSize; },
-        set compressedSize (val) { _compressedSize = val; },
+        get compressedSize() {
+            return _compressedSize;
+        },
+        set compressedSize(val) {
+            _compressedSize = Math.max(0, val) >>> 0;
+        },
 
-        get size () { return _size; },
-        set size (val) { _size = val; },
+        get size() {
+            return _size;
+        },
+        set size(val) {
+            _size = Math.max(0, val) >>> 0;
+        },
 
-        get fileNameLength () { return _fnameLen; },
-        set fileNameLength (val) { _fnameLen = val; },
+        get fileNameLength() {
+            return _fnameLen;
+        },
+        set fileNameLength(val) {
+            _fnameLen = val;
+        },
 
-        get extraLength () { return _extraLen },
-        set extraLength (val) { _extraLen = val; },
+        get extraLength() {
+            return _extraLen;
+        },
+        set extraLength(val) {
+            _extraLen = val;
+        },
 
-        get commentLength () { return _comLen },
-        set commentLength (val) { _comLen = val },
+        get commentLength() {
+            return _comLen;
+        },
+        set commentLength(val) {
+            _comLen = val;
+        },
 
-        get diskNumStart () { return _diskStart },
-        set diskNumStart (val) { _diskStart = val },
+        get diskNumStart() {
+            return _diskStart;
+        },
+        set diskNumStart(val) {
+            _diskStart = Math.max(0, val) >>> 0;
+        },
 
-        get inAttr () { return _inattr },
-        set inAttr (val) { _inattr = val },
+        get inAttr() {
+            return _inattr;
+        },
+        set inAttr(val) {
+            _inattr = Math.max(0, val) >>> 0;
+        },
 
-        get attr () { return _attr },
-        set attr (val) { _attr = val },
+        get attr() {
+            return _attr;
+        },
+        set attr(val) {
+            _attr = Math.max(0, val) >>> 0;
+        },
 
-        get offset () { return _offset },
-        set offset (val) { _offset = val },
+        // get Unix file permissions
+        get fileAttr() {
+            return _attr ? (((_attr >>> 0) | 0) >> 16) & 0xfff : 0;
+        },
 
-        get encripted () { return (_flags & 1) === 1 },
+        get offset() {
+            return _offset;
+        },
+        set offset(val) {
+            _offset = Math.max(0, val) >>> 0;
+        },
 
-        get entryHeaderSize () {
+        get encripted() {
+            return (_flags & 1) === 1;
+        },
+
+        get entryHeaderSize() {
             return Constants.CENHDR + _fnameLen + _extraLen + _comLen;
         },
 
-        get realDataOffset () {
+        get realDataOffset() {
             return _offset + Constants.LOCHDR + _dataHeader.fnameLen + _dataHeader.extraLen;
         },
 
-        get dataHeader () {
+        get dataHeader() {
             return _dataHeader;
         },
 
-        loadDataHeaderFromBinary : function(/*Buffer*/input) {
+        loadDataHeaderFromBinary: function (/*Buffer*/ input) {
             var data = input.slice(_offset, _offset + Constants.LOCHDR);
             // 30 bytes and should start with "PK\003\004"
             if (data.readUInt32LE(0) !== Constants.LOCSIG) {
@@ -5332,27 +7760,27 @@ module.exports = function () {
             }
             _dataHeader = {
                 // version needed to extract
-                version : data.readUInt16LE(Constants.LOCVER),
+                version: data.readUInt16LE(Constants.LOCVER),
                 // general purpose bit flag
-                flags : data.readUInt16LE(Constants.LOCFLG),
+                flags: data.readUInt16LE(Constants.LOCFLG),
                 // compression method
-                method : data.readUInt16LE(Constants.LOCHOW),
+                method: data.readUInt16LE(Constants.LOCHOW),
                 // modification time (2 bytes time, 2 bytes date)
-                time : data.readUInt32LE(Constants.LOCTIM),
+                time: data.readUInt32LE(Constants.LOCTIM),
                 // uncompressed file crc-32 value
-                crc : data.readUInt32LE(Constants.LOCCRC),
+                crc: data.readUInt32LE(Constants.LOCCRC),
                 // compressed size
-                compressedSize : data.readUInt32LE(Constants.LOCSIZ),
+                compressedSize: data.readUInt32LE(Constants.LOCSIZ),
                 // uncompressed size
-                size : data.readUInt32LE(Constants.LOCLEN),
+                size: data.readUInt32LE(Constants.LOCLEN),
                 // filename length
-                fnameLen : data.readUInt16LE(Constants.LOCNAM),
+                fnameLen: data.readUInt16LE(Constants.LOCNAM),
                 // extra field length
-                extraLen : data.readUInt16LE(Constants.LOCEXT)
-            }
+                extraLen: data.readUInt16LE(Constants.LOCEXT)
+            };
         },
 
-        loadFromBinary : function(/*Buffer*/data) {
+        loadFromBinary: function (/*Buffer*/ data) {
             // data should be 46 bytes and start with "PK 01 02"
             if (data.length !== Constants.CENHDR || data.readUInt32LE(0) !== Constants.CENSIG) {
                 throw new Error(Utils.Errors.INVALID_CEN);
@@ -5389,7 +7817,7 @@ module.exports = function () {
             _offset = data.readUInt32LE(Constants.CENOFF);
         },
 
-        dataHeaderToBinary : function() {
+        dataHeaderToBinary: function () {
             // LOC header size (30 bytes)
             var data = Buffer.alloc(Constants.LOCHDR);
             // "PK\003\004"
@@ -5415,7 +7843,7 @@ module.exports = function () {
             return data;
         },
 
-        entryHeaderToBinary : function() {
+        entryHeaderToBinary: function () {
             // CEN header size (46 bytes)
             var data = Buffer.alloc(Constants.CENHDR + _fnameLen + _extraLen + _comLen);
             // "PK\001\002"
@@ -5455,27 +7883,35 @@ module.exports = function () {
             return data;
         },
 
-        toString : function() {
-            return '{\n' +
-                '\t"made" : ' + _verMade + ",\n" +
-                '\t"version" : ' + _version + ",\n" +
-                '\t"flags" : ' + _flags + ",\n" +
-                '\t"method" : ' + Utils.methodToString(_method) + ",\n" +
-                '\t"time" : ' + this.time + ",\n" +
-                '\t"crc" : 0x' + _crc.toString(16).toUpperCase() + ",\n" +
-                '\t"compressedSize" : ' + _compressedSize + " bytes,\n" +
-                '\t"size" : ' + _size + " bytes,\n" +
-                '\t"fileNameLength" : ' + _fnameLen + ",\n" +
-                '\t"extraLength" : ' + _extraLen + " bytes,\n" +
-                '\t"commentLength" : ' + _comLen + " bytes,\n" +
-                '\t"diskNumStart" : ' + _diskStart + ",\n" +
-                '\t"inAttr" : ' + _inattr + ",\n" +
-                '\t"attr" : ' + _attr + ",\n" +
-                '\t"offset" : ' + _offset + ",\n" +
-                '\t"entryHeaderSize" : ' + (Constants.CENHDR + _fnameLen + _extraLen + _comLen) + " bytes\n" +
-                '}';
+        toJSON: function () {
+            const bytes = function (nr) {
+                return nr + " bytes";
+            };
+
+            return {
+                made: _verMade,
+                version: _version,
+                flags: _flags,
+                method: Utils.methodToString(_method),
+                time: this.time,
+                crc: "0x" + _crc.toString(16).toUpperCase(),
+                compressedSize: bytes(_compressedSize),
+                size: bytes(_size),
+                fileNameLength: bytes(_fnameLen),
+                extraLength: bytes(_extraLen),
+                commentLength: bytes(_comLen),
+                diskNumStart: _diskStart,
+                inAttr: _inattr,
+                attr: _attr,
+                offset: _offset,
+                entryHeaderSize: bytes(Constants.CENHDR + _fnameLen + _extraLen + _comLen)
+            };
+        },
+
+        toString: function () {
+            return JSON.stringify(this.toJSON(), null, "\t");
         }
-    }
+    };
 };
 
 
@@ -5505,31 +7941,52 @@ module.exports = function () {
         _commentLength = 0;
 
     return {
-        get diskEntries () { return _volumeEntries },
-        set diskEntries (/*Number*/val) { _volumeEntries = _totalEntries = val; },
+        get diskEntries() {
+            return _volumeEntries;
+        },
+        set diskEntries(/*Number*/ val) {
+            _volumeEntries = _totalEntries = val;
+        },
 
-        get totalEntries () { return _totalEntries },
-        set totalEntries (/*Number*/val) { _totalEntries = _volumeEntries = val; },
+        get totalEntries() {
+            return _totalEntries;
+        },
+        set totalEntries(/*Number*/ val) {
+            _totalEntries = _volumeEntries = val;
+        },
 
-        get size () { return _size },
-        set size (/*Number*/val) { _size = val; },
+        get size() {
+            return _size;
+        },
+        set size(/*Number*/ val) {
+            _size = val;
+        },
 
-        get offset () { return _offset },
-        set offset (/*Number*/val) { _offset = val; },
+        get offset() {
+            return _offset;
+        },
+        set offset(/*Number*/ val) {
+            _offset = val;
+        },
 
-        get commentLength () { return _commentLength },
-        set commentLength (/*Number*/val) { _commentLength = val; },
+        get commentLength() {
+            return _commentLength;
+        },
+        set commentLength(/*Number*/ val) {
+            _commentLength = val;
+        },
 
-        get mainHeaderSize () {
+        get mainHeaderSize() {
             return Constants.ENDHDR + _commentLength;
         },
 
-        loadFromBinary : function(/*Buffer*/data) {
+        loadFromBinary: function (/*Buffer*/ data) {
             // data should be 22 bytes and start with "PK 05 06"
             // or be 56+ bytes and start with "PK 06 06" for Zip64
-            if ((data.length !== Constants.ENDHDR || data.readUInt32LE(0) !== Constants.ENDSIG) &&
-                (data.length < Constants.ZIP64HDR || data.readUInt32LE(0) !== Constants.ZIP64SIG)) {
-
+            if (
+                (data.length !== Constants.ENDHDR || data.readUInt32LE(0) !== Constants.ENDSIG) &&
+                (data.length < Constants.ZIP64HDR || data.readUInt32LE(0) !== Constants.ZIP64SIG)
+            ) {
                 throw new Error(Utils.Errors.INVALID_END);
             }
 
@@ -5556,11 +8013,10 @@ module.exports = function () {
 
                 _commentLength = 0;
             }
-
         },
 
-        toBinary : function() {
-           var b = Buffer.alloc(Constants.ENDHDR + _commentLength);
+        toBinary: function () {
+            var b = Buffer.alloc(Constants.ENDHDR + _commentLength);
             // "PK 05 06" signature
             b.writeUInt32LE(Constants.ENDSIG, 0);
             b.writeUInt32LE(0, 4);
@@ -5580,53 +8036,67 @@ module.exports = function () {
             return b;
         },
 
-        toString : function() {
-            return '{\n' +
-                '\t"diskEntries" : ' + _volumeEntries + ",\n" +
-                '\t"totalEntries" : ' + _totalEntries + ",\n" +
-                '\t"size" : ' + _size + " bytes,\n" +
-                '\t"offset" : 0x' + _offset.toString(16).toUpperCase() + ",\n" +
-                '\t"commentLength" : 0x' + _commentLength + "\n" +
-            '}';
+        toJSON: function () {
+            // creates 0x0000 style output
+            const offset = function (nr, len) {
+                let offs = nr.toString(16).toUpperCase();
+                while (offs.length < len) offs = "0" + offs;
+                return "0x" + offs;
+            };
+
+            return {
+                diskEntries: _volumeEntries,
+                totalEntries: _totalEntries,
+                size: _size + " bytes",
+                offset: offset(_offset, 4),
+                commentLength: _commentLength
+            };
+        },
+
+        toString: function () {
+            return JSON.stringify(this.toJSON(), null, "\t");
         }
-    }
+    };
 };
+
 
 /***/ }),
 
 /***/ 5809:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-module.exports = function (/*Buffer*/inbuf) {
+module.exports = function (/*Buffer*/ inbuf) {
+    var zlib = __nccwpck_require__(8761);
 
-  var zlib = __nccwpck_require__(8761);
-  
-  var opts = {chunkSize: (parseInt(inbuf.length / 1024) + 1) * 1024};
-  
-  return {
-    deflate: function () {
-      return zlib.deflateRawSync(inbuf, opts);
-    },
+    var opts = { chunkSize: (parseInt(inbuf.length / 1024) + 1) * 1024 };
 
-    deflateAsync: function (/*Function*/callback) {
-      var tmp = zlib.createDeflateRaw(opts), parts = [], total = 0;
-      tmp.on('data', function (data) {
-        parts.push(data);
-        total += data.length;
-      });
-      tmp.on('end', function () {
-        var buf = Buffer.alloc(total), written = 0;
-        buf.fill(0);
-        for (var i = 0; i < parts.length; i++) {
-          var part = parts[i];
-          part.copy(buf, written);
-          written += part.length;
+    return {
+        deflate: function () {
+            return zlib.deflateRawSync(inbuf, opts);
+        },
+
+        deflateAsync: function (/*Function*/ callback) {
+            var tmp = zlib.createDeflateRaw(opts),
+                parts = [],
+                total = 0;
+            tmp.on("data", function (data) {
+                parts.push(data);
+                total += data.length;
+            });
+            tmp.on("end", function () {
+                var buf = Buffer.alloc(total),
+                    written = 0;
+                buf.fill(0);
+                for (var i = 0; i < parts.length; i++) {
+                    var part = parts[i];
+                    part.copy(buf, written);
+                    written += part.length;
+                }
+                callback && callback(buf);
+            });
+            tmp.end(inbuf);
         }
-        callback && callback(buf);
-      });
-      tmp.end(inbuf);
-    }
-  }
+    };
 };
 
 
@@ -5639,39 +8109,42 @@ exports.Deflater = __nccwpck_require__(5809);
 exports.Inflater = __nccwpck_require__(5176);
 exports.ZipCrypto = __nccwpck_require__(6788);
 
+
 /***/ }),
 
 /***/ 5176:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-module.exports = function (/*Buffer*/inbuf) {
+module.exports = function (/*Buffer*/ inbuf) {
+    var zlib = __nccwpck_require__(8761);
 
-  var zlib = __nccwpck_require__(8761);
+    return {
+        inflate: function () {
+            return zlib.inflateRawSync(inbuf);
+        },
 
-  return {
-    inflate: function () {
-      return zlib.inflateRawSync(inbuf);
-    },
-
-    inflateAsync: function (/*Function*/callback) {
-      var tmp = zlib.createInflateRaw(), parts = [], total = 0;
-      tmp.on('data', function (data) {
-        parts.push(data);
-        total += data.length;
-      });
-      tmp.on('end', function () {
-        var buf = Buffer.alloc(total), written = 0;
-        buf.fill(0);
-        for (var i = 0; i < parts.length; i++) {
-          var part = parts[i];
-          part.copy(buf, written);
-          written += part.length;
+        inflateAsync: function (/*Function*/ callback) {
+            var tmp = zlib.createInflateRaw(),
+                parts = [],
+                total = 0;
+            tmp.on("data", function (data) {
+                parts.push(data);
+                total += data.length;
+            });
+            tmp.on("end", function () {
+                var buf = Buffer.alloc(total),
+                    written = 0;
+                buf.fill(0);
+                for (var i = 0; i < parts.length; i++) {
+                    var part = parts[i];
+                    part.copy(buf, written);
+                    written += part.length;
+                }
+                callback && callback(buf);
+            });
+            tmp.end(inbuf);
         }
-        callback && callback(buf);
-      });
-      tmp.end(inbuf);
-    }
-  }
+    };
 };
 
 
@@ -5680,10 +8153,12 @@ module.exports = function (/*Buffer*/inbuf) {
 /***/ 6788:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-// node crypt, we use it for generate salt
-const { randomFillSync } = __nccwpck_require__(6417);
-
 "use strict";
+
+
+// node crypt, we use it for generate salt
+// eslint-disable-next-line node/no-unsupported-features/node-builtins
+const { randomFillSync } = __nccwpck_require__(6417);
 
 // generate CRC32 lookup table
 const crctable = new Uint32Array(256).map((t, crc) => {
@@ -5933,26 +8408,33 @@ module.exports = {
     REDUCED3         : 4, // reduced with compression factor 3
     REDUCED4         : 5, // reduced with compression factor 4
     IMPLODED         : 6, // imploded
-    // 7 reserved
+    // 7 reserved for Tokenizing compression algorithm
     DEFLATED         : 8, // deflated
     ENHANCED_DEFLATED: 9, // enhanced deflated
     PKWARE           : 10,// PKWare DCL imploded
-    // 11 reserved
+    // 11 reserved by PKWARE
     BZIP2            : 12, //  compressed using BZIP2
-    // 13 reserved
+    // 13 reserved by PKWARE
     LZMA             : 14, // LZMA
-    // 15-17 reserved
+    // 15-17 reserved by PKWARE
     IBM_TERSE        : 18, // compressed using IBM TERSE
-    IBM_LZ77         : 19, //IBM LZ77 z
+    IBM_LZ77         : 19, // IBM LZ77 z
+    AES_ENCRYPT      : 99, // WinZIP AES encryption method
 
     /* General purpose bit flag */
-    FLG_ENC          : 0,  // encripted file
-    FLG_COMP1        : 1,  // compression option
-    FLG_COMP2        : 2,  // compression option
-    FLG_DESC         : 4,  // data descriptor
-    FLG_ENH          : 8,  // enhanced deflation
-    FLG_STR          : 16, // strong encryption
-    FLG_LNG          : 1024, // language encoding
+    // values can obtained with expression 2**bitnr
+    FLG_ENC          : 1,    // Bit 0: encrypted file
+    FLG_COMP1        : 2,    // Bit 1, compression option
+    FLG_COMP2        : 4,    // Bit 2, compression option
+    FLG_DESC         : 8,    // Bit 3, data descriptor
+    FLG_ENH          : 16,   // Bit 4, enhanced deflating
+    FLG_PATCH        : 32,   // Bit 5, indicates that the file is compressed patched data.
+    FLG_STR          : 64,   // Bit 6, strong encryption (patented)
+                             // Bits 7-10: Currently unused.
+    FLG_EFS          : 2048, // Bit 11: Language encoding flag (EFS)
+                             // Bit 12: Reserved by PKWARE for enhanced compression.
+                             // Bit 13: encrypted the Central Directory (patented).
+                             // Bits 14-15: Reserved by PKWARE.
     FLG_MSK          : 4096, // mask header values
 
     /* Load type */
@@ -6000,66 +8482,65 @@ module.exports = {
 
 module.exports = {
     /* Header error messages */
-    "INVALID_LOC" : "Invalid LOC header (bad signature)",
-    "INVALID_CEN" : "Invalid CEN header (bad signature)",
-    "INVALID_END" : "Invalid END header (bad signature)",
+    INVALID_LOC: "Invalid LOC header (bad signature)",
+    INVALID_CEN: "Invalid CEN header (bad signature)",
+    INVALID_END: "Invalid END header (bad signature)",
 
     /* ZipEntry error messages*/
-    "NO_DATA" : "Nothing to decompress",
-    "BAD_CRC" : "CRC32 checksum failed",
-    "FILE_IN_THE_WAY" : "There is a file in the way: %s",
-    "UNKNOWN_METHOD" : "Invalid/unsupported compression method",
+    NO_DATA: "Nothing to decompress",
+    BAD_CRC: "CRC32 checksum failed",
+    FILE_IN_THE_WAY: "There is a file in the way: %s",
+    UNKNOWN_METHOD: "Invalid/unsupported compression method",
 
     /* Inflater error messages */
-    "AVAIL_DATA" : "inflate::Available inflate data did not terminate",
-    "INVALID_DISTANCE" : "inflate::Invalid literal/length or distance code in fixed or dynamic block",
-    "TO_MANY_CODES" : "inflate::Dynamic block code description: too many length or distance codes",
-    "INVALID_REPEAT_LEN" : "inflate::Dynamic block code description: repeat more than specified lengths",
-    "INVALID_REPEAT_FIRST" : "inflate::Dynamic block code description: repeat lengths with no first length",
-    "INCOMPLETE_CODES" : "inflate::Dynamic block code description: code lengths codes incomplete",
-    "INVALID_DYN_DISTANCE": "inflate::Dynamic block code description: invalid distance code lengths",
-    "INVALID_CODES_LEN": "inflate::Dynamic block code description: invalid literal/length code lengths",
-    "INVALID_STORE_BLOCK" : "inflate::Stored block length did not match one's complement",
-    "INVALID_BLOCK_TYPE" : "inflate::Invalid block type (type == 3)",
+    AVAIL_DATA: "inflate::Available inflate data did not terminate",
+    INVALID_DISTANCE: "inflate::Invalid literal/length or distance code in fixed or dynamic block",
+    TO_MANY_CODES: "inflate::Dynamic block code description: too many length or distance codes",
+    INVALID_REPEAT_LEN: "inflate::Dynamic block code description: repeat more than specified lengths",
+    INVALID_REPEAT_FIRST: "inflate::Dynamic block code description: repeat lengths with no first length",
+    INCOMPLETE_CODES: "inflate::Dynamic block code description: code lengths codes incomplete",
+    INVALID_DYN_DISTANCE: "inflate::Dynamic block code description: invalid distance code lengths",
+    INVALID_CODES_LEN: "inflate::Dynamic block code description: invalid literal/length code lengths",
+    INVALID_STORE_BLOCK: "inflate::Stored block length did not match one's complement",
+    INVALID_BLOCK_TYPE: "inflate::Invalid block type (type == 3)",
 
     /* ADM-ZIP error messages */
-    "CANT_EXTRACT_FILE" : "Could not extract the file",
-    "CANT_OVERRIDE" : "Target file already exists",
-    "NO_ZIP" : "No zip file was loaded",
-    "NO_ENTRY" : "Entry doesn't exist",
-    "DIRECTORY_CONTENT_ERROR" : "A directory cannot have content",
-    "FILE_NOT_FOUND" : "File not found: %s",
-    "NOT_IMPLEMENTED" : "Not implemented",
-    "INVALID_FILENAME" : "Invalid filename",
-    "INVALID_FORMAT" : "Invalid or unsupported zip format. No END header found"
+    CANT_EXTRACT_FILE: "Could not extract the file",
+    CANT_OVERRIDE: "Target file already exists",
+    NO_ZIP: "No zip file was loaded",
+    NO_ENTRY: "Entry doesn't exist",
+    DIRECTORY_CONTENT_ERROR: "A directory cannot have content",
+    FILE_NOT_FOUND: "File not found: %s",
+    NOT_IMPLEMENTED: "Not implemented",
+    INVALID_FILENAME: "Invalid filename",
+    INVALID_FORMAT: "Invalid or unsupported zip format. No END header found"
 };
+
 
 /***/ }),
 
 /***/ 849:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var fs = __nccwpck_require__(98).require(),
-    pth = __nccwpck_require__(5622);
-	
+const fs = __nccwpck_require__(98).require();
+const pth = __nccwpck_require__(5622);
+
 fs.existsSync = fs.existsSync || pth.existsSync;
 
-module.exports = function(/*String*/path) {
-
+module.exports = function (/*String*/ path) {
     var _path = path || "",
-        _permissions = 0,
         _obj = newAttr(),
         _stat = null;
 
     function newAttr() {
         return {
-            directory : false,
-            readonly : false,
-            hidden : false,
-            executable : false,
-            mtime : 0,
-            atime : 0
-        }
+            directory: false,
+            readonly: false,
+            hidden: false,
+            executable: false,
+            mtime: 0,
+            atime: 0
+        };
     }
 
     if (_path && fs.existsSync(_path)) {
@@ -6067,61 +8548,58 @@ module.exports = function(/*String*/path) {
         _obj.directory = _stat.isDirectory();
         _obj.mtime = _stat.mtime;
         _obj.atime = _stat.atime;
-        _obj.executable = (0o111 & _stat.mode) != 0;    // file is executable who ever har right not just owner
-        _obj.readonly   = (0o200 & _stat.mode) == 0;    // readonly if owner has no write right
+        _obj.executable = (0o111 & _stat.mode) !== 0; // file is executable who ever har right not just owner
+        _obj.readonly = (0o200 & _stat.mode) === 0; // readonly if owner has no write right
         _obj.hidden = pth.basename(_path)[0] === ".";
     } else {
-        console.warn("Invalid path: " + _path)
+        console.warn("Invalid path: " + _path);
     }
 
     return {
-
-        get directory () {
+        get directory() {
             return _obj.directory;
         },
 
-        get readOnly () {
+        get readOnly() {
             return _obj.readonly;
         },
 
-        get hidden () {
+        get hidden() {
             return _obj.hidden;
         },
 
-        get mtime () {
+        get mtime() {
             return _obj.mtime;
         },
 
-        get atime () {
-           return _obj.atime;
+        get atime() {
+            return _obj.atime;
         },
 
-
-        get executable () {
+        get executable() {
             return _obj.executable;
         },
 
-        decodeAttributes : function(val) {
+        decodeAttributes: function () {},
 
+        encodeAttributes: function () {},
+
+        toJSON: function () {
+            return {
+                path: _path,
+                isDirectory: _obj.directory,
+                isReadOnly: _obj.readonly,
+                isHidden: _obj.hidden,
+                isExecutable: _obj.executable,
+                mTime: _obj.mtime,
+                aTime: _obj.atime
+            };
         },
 
-        encodeAttributes : function (val) {
-
-        },
-
-        toString : function() {
-           return '{\n' +
-               '\t"path" : "' + _path + ",\n" +
-               '\t"isDirectory" : ' + _obj.directory + ",\n" +
-               '\t"isReadOnly" : ' + _obj.readonly + ",\n" +
-               '\t"isHidden" : ' + _obj.hidden + ",\n" +
-               '\t"isExecutable" : ' + _obj.executable + ",\n" +
-               '\t"mTime" : ' + _obj.mtime + "\n" +
-               '\t"aTime" : ' + _obj.atime + "\n" +
-           '}';
+        toString: function () {
+            return JSON.stringify(this.toJSON(), null, "\t");
         }
-    }
-
+    };
 };
 
 
@@ -6130,17 +8608,16 @@ module.exports = function(/*String*/path) {
 /***/ 98:
 /***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
-exports.require = function() {
-  var fs = __nccwpck_require__(5747);
-  if (process && process.versions && process.versions['electron']) {
-	  try {
-	    originalFs = __nccwpck_require__(2161);
-	    if (Object.keys(originalFs).length > 0) {
-	      fs = originalFs;
-      }
-	  } catch (e) {}
-  }
-  return fs
+exports.require = function () {
+    if (typeof process === "object" && process.versions && process.versions["electron"]) {
+        try {
+            const originalFs = __nccwpck_require__(2161);
+            if (Object.keys(originalFs).length > 0) {
+                return originalFs;
+            }
+        } catch (e) {}
+    }
+    return __nccwpck_require__(5747);
 };
 
 
@@ -6150,234 +8627,262 @@ exports.require = function() {
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 module.exports = __nccwpck_require__(7702);
-module.exports.FileSystem = __nccwpck_require__(98);
 module.exports.Constants = __nccwpck_require__(1609);
 module.exports.Errors = __nccwpck_require__(1883);
 module.exports.FileAttr = __nccwpck_require__(849);
+
 
 /***/ }),
 
 /***/ 7702:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var fs = __nccwpck_require__(98).require(),
-    pth = __nccwpck_require__(5622);
+const fsystem = __nccwpck_require__(98).require();
+const pth = __nccwpck_require__(5622);
+const Constants = __nccwpck_require__(1609);
+const isWin = typeof process === "object" && "win32" === process.platform;
 
-fs.existsSync = fs.existsSync || pth.existsSync;
+const is_Obj = (obj) => obj && typeof obj === "object";
 
-module.exports = (function() {
+// generate CRC32 lookup table
+const crcTable = new Uint32Array(256).map((t, c) => {
+    for (let k = 0; k < 8; k++) {
+        if ((c & 1) !== 0) {
+            c = 0xedb88320 ^ (c >>> 1);
+        } else {
+            c >>>= 1;
+        }
+    }
+    return c >>> 0;
+});
 
-    var crcTable = [],
-        Constants = __nccwpck_require__(1609),
-        Errors = __nccwpck_require__(1883),
+// UTILS functions
 
-        PATH_SEPARATOR = pth.sep;
+function Utils(opts) {
+    this.sep = pth.sep;
+    this.fs = fsystem;
 
+    if (is_Obj(opts)) {
+        // custom filesystem
+        if (is_Obj(opts.fs) && typeof opts.fs.statSync === "function") {
+            this.fs = opts.fs;
+        }
+    }
+}
 
-    function mkdirSync(/*String*/path) {
-        var resolvedPath = path.split(PATH_SEPARATOR)[0];
-        path.split(PATH_SEPARATOR).forEach(function(name) {
-            if (!name || name.substr(-1,1) === ":") return;
-            resolvedPath += PATH_SEPARATOR + name;
+module.exports = Utils;
+
+// INSTANCED functions
+
+Utils.prototype.makeDir = function (/*String*/ folder) {
+    const self = this;
+
+    // Sync - make directories tree
+    function mkdirSync(/*String*/ fpath) {
+        let resolvedPath = fpath.split(self.sep)[0];
+        fpath.split(self.sep).forEach(function (name) {
+            if (!name || name.substr(-1, 1) === ":") return;
+            resolvedPath += self.sep + name;
             var stat;
             try {
-                stat = fs.statSync(resolvedPath);
+                stat = self.fs.statSync(resolvedPath);
             } catch (e) {
-                fs.mkdirSync(resolvedPath);
+                self.fs.mkdirSync(resolvedPath);
             }
-            if (stat && stat.isFile())
-                throw Errors.FILE_IN_THE_WAY.replace("%s", resolvedPath);
+            if (stat && stat.isFile()) throw Errors.FILE_IN_THE_WAY.replace("%s", resolvedPath);
         });
     }
 
-    function findSync(/*String*/dir, /*RegExp*/pattern, /*Boolean*/recoursive) {
-        if (typeof pattern === 'boolean') {
-            recoursive = pattern;
-            pattern = undefined;
+    mkdirSync(folder);
+};
+
+Utils.prototype.writeFileTo = function (/*String*/ path, /*Buffer*/ content, /*Boolean*/ overwrite, /*Number*/ attr) {
+    const self = this;
+    if (self.fs.existsSync(path)) {
+        if (!overwrite) return false; // cannot overwrite
+
+        var stat = self.fs.statSync(path);
+        if (stat.isDirectory()) {
+            return false;
         }
-        var files = [];
-        fs.readdirSync(dir).forEach(function(file) {
-            var path = pth.join(dir, file);
+    }
+    var folder = pth.dirname(path);
+    if (!self.fs.existsSync(folder)) {
+        self.makeDir(folder);
+    }
 
-            if (fs.statSync(path).isDirectory() && recoursive)
-                files = files.concat(findSync(path, pattern, recoursive));
+    var fd;
+    try {
+        fd = self.fs.openSync(path, "w", 438); // 0666
+    } catch (e) {
+        self.fs.chmodSync(path, 438);
+        fd = self.fs.openSync(path, "w", 438);
+    }
+    if (fd) {
+        try {
+            self.fs.writeSync(fd, content, 0, content.length, 0);
+        } finally {
+            self.fs.closeSync(fd);
+        }
+    }
+    self.fs.chmodSync(path, attr || 438);
+    return true;
+};
 
-            if (!pattern || pattern.test(path)) {
-                files.push(pth.normalize(path) + (fs.statSync(path).isDirectory() ? PATH_SEPARATOR : ""));
+Utils.prototype.writeFileToAsync = function (/*String*/ path, /*Buffer*/ content, /*Boolean*/ overwrite, /*Number*/ attr, /*Function*/ callback) {
+    if (typeof attr === "function") {
+        callback = attr;
+        attr = undefined;
+    }
+
+    const self = this;
+
+    self.fs.exists(path, function (exist) {
+        if (exist && !overwrite) return callback(false);
+
+        self.fs.stat(path, function (err, stat) {
+            if (exist && stat.isDirectory()) {
+                return callback(false);
             }
 
+            var folder = pth.dirname(path);
+            self.fs.exists(folder, function (exists) {
+                if (!exists) self.makeDir(folder);
+
+                self.fs.open(path, "w", 438, function (err, fd) {
+                    if (err) {
+                        self.fs.chmod(path, 438, function () {
+                            self.fs.open(path, "w", 438, function (err, fd) {
+                                self.fs.write(fd, content, 0, content.length, 0, function () {
+                                    self.fs.close(fd, function () {
+                                        self.fs.chmod(path, attr || 438, function () {
+                                            callback(true);
+                                        });
+                                    });
+                                });
+                            });
+                        });
+                    } else if (fd) {
+                        self.fs.write(fd, content, 0, content.length, 0, function () {
+                            self.fs.close(fd, function () {
+                                self.fs.chmod(path, attr || 438, function () {
+                                    callback(true);
+                                });
+                            });
+                        });
+                    } else {
+                        self.fs.chmod(path, attr || 438, function () {
+                            callback(true);
+                        });
+                    }
+                });
+            });
+        });
+    });
+};
+
+Utils.prototype.findFiles = function (/*String*/ path) {
+    const self = this;
+
+    function findSync(/*String*/ dir, /*RegExp*/ pattern, /*Boolean*/ recursive) {
+        if (typeof pattern === "boolean") {
+            recursive = pattern;
+            pattern = undefined;
+        }
+        let files = [];
+        self.fs.readdirSync(dir).forEach(function (file) {
+            var path = pth.join(dir, file);
+
+            if (self.fs.statSync(path).isDirectory() && recursive) files = files.concat(findSync(path, pattern, recursive));
+
+            if (!pattern || pattern.test(path)) {
+                files.push(pth.normalize(path) + (self.fs.statSync(path).isDirectory() ? self.sep : ""));
+            }
         });
         return files;
     }
 
-    function readBigUInt64LE(/*Buffer*/buffer, /*int*/index) {
-        var slice = Buffer.from(buffer.slice(index, index + 8));
-        slice.swap64();
+    return findSync(path, undefined, true);
+};
 
-        return parseInt(`0x${ slice.toString('hex') }`);
+Utils.prototype.getAttributes = function () {};
+
+Utils.prototype.setAttributes = function () {};
+
+// STATIC functions
+
+// crc32 single update (it is part of crc32)
+Utils.crc32update = function (crc, byte) {
+    return crcTable[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+};
+
+Utils.crc32 = function (buf) {
+    if (typeof buf === "string") {
+        buf = Buffer.from(buf, "utf8");
     }
+    // Generate crcTable
+    if (!crcTable.length) genCRCTable();
 
-    return {
-        makeDir : function(/*String*/path) {
-            mkdirSync(path);
-        },
+    let len = buf.length;
+    let crc = ~0;
+    for (let off = 0; off < len; ) crc = Utils.crc32update(crc, buf[off++]);
+    // xor and cast as uint32 number
+    return ~crc >>> 0;
+};
 
-        crc32 : function(buf) {
-            if (typeof buf === 'string') {
-                buf = Buffer.from(buf);
-            }
-            var b = Buffer.alloc(4);
-            if (!crcTable.length) {
-                for (var n = 0; n < 256; n++) {
-                    var c = n;
-                    for (var k = 8; --k >= 0;)  //
-                        if ((c & 1) !== 0)  { c = 0xedb88320 ^ (c >>> 1); } else { c = c >>> 1; }
-                    if (c < 0) {
-                        b.writeInt32LE(c, 0);
-                        c = b.readUInt32LE(0);
-                    }
-                    crcTable[n] = c;
-                }
-            }
-            var crc = 0, off = 0, len = buf.length, c1 = ~crc;
-            while(--len >= 0) c1 = crcTable[(c1 ^ buf[off++]) & 0xff] ^ (c1 >>> 8);
-            crc = ~c1;
-            b.writeInt32LE(crc & 0xffffffff, 0);
-            return b.readUInt32LE(0);
-        },
-
-        methodToString : function(/*Number*/method) {
-            switch (method) {
-                case Constants.STORED:
-                    return 'STORED (' + method + ')';
-                case Constants.DEFLATED:
-                    return 'DEFLATED (' + method + ')';
-                default:
-                    return 'UNSUPPORTED (' + method + ')';
-            }
-
-        },
-
-        writeFileTo : function(/*String*/path, /*Buffer*/content, /*Boolean*/overwrite, /*Number*/attr) {
-            if (fs.existsSync(path)) {
-                if (!overwrite)
-                    return false; // cannot overwrite
-
-                var stat = fs.statSync(path);
-                if (stat.isDirectory()) {
-                    return false;
-                }
-            }
-            var folder = pth.dirname(path);
-            if (!fs.existsSync(folder)) {
-                mkdirSync(folder);
-            }
-
-            var fd;
-            try {
-                fd = fs.openSync(path, 'w', 438); // 0666
-            } catch(e) {
-                fs.chmodSync(path, 438);
-                fd = fs.openSync(path, 'w', 438);
-            }
-            if (fd) {
-                try {
-                    fs.writeSync(fd, content, 0, content.length, 0);
-                }
-                catch (e){
-                    throw e;
-                }
-                finally {
-                    fs.closeSync(fd);
-                }
-            }
-            fs.chmodSync(path, attr || 438);
-            return true;
-        },
-
-        writeFileToAsync : function(/*String*/path, /*Buffer*/content, /*Boolean*/overwrite, /*Number*/attr, /*Function*/callback) {
-            if(typeof attr === 'function') {
-                callback = attr;
-                attr = undefined;
-            }
-
-            fs.exists(path, function(exists) {
-                if(exists && !overwrite)
-                    return callback(false);
-
-                fs.stat(path, function(err, stat) {
-                    if(exists &&stat.isDirectory()) {
-                        return callback(false);
-                    }
-
-                    var folder = pth.dirname(path);
-                    fs.exists(folder, function(exists) {
-                        if(!exists)
-                            mkdirSync(folder);
-
-                        fs.open(path, 'w', 438, function(err, fd) {
-                            if(err) {
-                                fs.chmod(path, 438, function() {
-                                    fs.open(path, 'w', 438, function(err, fd) {
-                                        fs.write(fd, content, 0, content.length, 0, function() {
-                                            fs.close(fd, function() {
-                                                fs.chmod(path, attr || 438, function() {
-                                                    callback(true);
-                                                })
-                                            });
-                                        });
-                                    });
-                                })
-                            } else {
-                                if(fd) {
-                                    fs.write(fd, content, 0, content.length, 0, function() {
-                                        fs.close(fd, function() {
-                                            fs.chmod(path, attr || 438, function() {
-                                                callback(true);
-                                            })
-                                        });
-                                    });
-                                } else {
-                                    fs.chmod(path, attr || 438, function() {
-                                        callback(true);
-                                    })
-                                }
-                            }
-                        });
-                    })
-                })
-            })
-        },
-
-        findFiles : function(/*String*/path) {
-            return findSync(path, true);
-        },
-
-        getAttributes : function(/*String*/path) {
-
-        },
-
-        setAttributes : function(/*String*/path) {
-
-        },
-
-        toBuffer : function(input) {
-            if (Buffer.isBuffer(input)) {
-                return input;
-            } else {
-                if (input.length === 0) {
-                    return Buffer.alloc(0)
-                }
-                return Buffer.from(input, 'utf8');
-            }
-        },
-
-        readBigUInt64LE,
-
-        Constants : Constants,
-        Errors : Errors
+Utils.methodToString = function (/*Number*/ method) {
+    switch (method) {
+        case Constants.STORED:
+            return "STORED (" + method + ")";
+        case Constants.DEFLATED:
+            return "DEFLATED (" + method + ")";
+        default:
+            return "UNSUPPORTED (" + method + ")";
     }
-})();
+};
+
+// removes ".." style path elements
+Utils.canonical = function (/*string*/ path) {
+    if (!path) return "";
+    // trick normalize think path is absolute
+    var safeSuffix = pth.posix.normalize("/" + path.split("\\").join("/"));
+    return pth.join(".", safeSuffix);
+};
+
+// make abolute paths taking prefix as root folder
+Utils.sanitize = function (/*string*/ prefix, /*string*/ name) {
+    prefix = pth.resolve(pth.normalize(prefix));
+    var parts = name.split("/");
+    for (var i = 0, l = parts.length; i < l; i++) {
+        var path = pth.normalize(pth.join(prefix, parts.slice(i, l).join(pth.sep)));
+        if (path.indexOf(prefix) === 0) {
+            return path;
+        }
+    }
+    return pth.normalize(pth.join(prefix, pth.basename(name)));
+};
+
+// converts buffer, Uint8Array, string types to buffer
+Utils.toBuffer = function toBuffer(/*buffer, Uint8Array, string*/ input) {
+    if (Buffer.isBuffer(input)) {
+        return input;
+    } else if (input instanceof Uint8Array) {
+        return Buffer.from(input);
+    } else {
+        // expect string all other values are invalid and return empty buffer
+        return typeof input === "string" ? Buffer.from(input, "utf8") : Buffer.alloc(0);
+    }
+};
+
+Utils.readBigUInt64LE = function (/*Buffer*/ buffer, /*int*/ index) {
+    var slice = Buffer.from(buffer.slice(index, index + 8));
+    slice.swap64();
+
+    return parseInt(`0x${slice.toString("hex")}`);
+};
+
+Utils.isWin = isWin; // Do we have windows system
+Utils.crcTable = crcTable;
 
 
 /***/ }),
@@ -6390,7 +8895,7 @@ var Utils = __nccwpck_require__(4305),
     Constants = Utils.Constants,
     Methods = __nccwpck_require__(3601);
 
-module.exports = function (/*Buffer*/input) {
+module.exports = function (/*Buffer*/ input) {
     var _entryHeader = new Headers.EntryHeader(),
         _entryName = Buffer.alloc(0),
         _comment = Buffer.alloc(0),
@@ -6403,15 +8908,15 @@ module.exports = function (/*Buffer*/input) {
             return Buffer.alloc(0);
         }
         _entryHeader.loadDataHeaderFromBinary(input);
-        return input.slice(_entryHeader.realDataOffset, _entryHeader.realDataOffset + _entryHeader.compressedSize)
+        return input.slice(_entryHeader.realDataOffset, _entryHeader.realDataOffset + _entryHeader.compressedSize);
     }
 
     function crc32OK(data) {
         // if bit 3 (0x08) of the general-purpose flags field is set, then the CRC-32 and file sizes are not known when the header is written
         if ((_entryHeader.flags & 0x8) !== 0x8) {
-           if (Utils.crc32(data) !== _entryHeader.dataHeader.crc) {
-               return false;
-           }
+            if (Utils.crc32(data) !== _entryHeader.dataHeader.crc) {
+                return false;
+            }
         } else {
             // @TODO: load and check data descriptor header
             // The fields in the local header are filled with zero, and the CRC-32 and size are appended in a 12-byte structure
@@ -6420,10 +8925,10 @@ module.exports = function (/*Buffer*/input) {
         return true;
     }
 
-    function decompress(/*Boolean*/async, /*Function*/callback, /*String, Buffer*/pass) {
-        if(typeof callback === 'undefined' && typeof async === 'string') {
-            pass=async;
-            async=void 0;
+    function decompress(/*Boolean*/ async, /*Function*/ callback, /*String, Buffer*/ pass) {
+        if (typeof callback === "undefined" && typeof async === "string") {
+            pass = async;
+            async = void 0;
         }
         if (_isDirectory) {
             if (async && callback) {
@@ -6440,9 +8945,9 @@ module.exports = function (/*Buffer*/input) {
             return compressedData;
         }
 
-        if (_entryHeader.encripted){
-            if ('string' !== typeof pass && !Buffer.isBuffer(pass)){
-                throw new Error('ADM-ZIP: Incompatible password parameter');
+        if (_entryHeader.encripted) {
+            if ("string" !== typeof pass && !Buffer.isBuffer(pass)) {
+                throw new Error("ADM-ZIP: Incompatible password parameter");
             }
             compressedData = Methods.ZipCrypto.decrypt(compressedData, _entryHeader, pass);
         }
@@ -6453,28 +8958,31 @@ module.exports = function (/*Buffer*/input) {
             case Utils.Constants.STORED:
                 compressedData.copy(data);
                 if (!crc32OK(data)) {
-                    if (async && callback) callback(data, Utils.Errors.BAD_CRC);//si added error
+                    if (async && callback) callback(data, Utils.Errors.BAD_CRC); //si added error
                     throw new Error(Utils.Errors.BAD_CRC);
-                } else {//si added otherwise did not seem to return data.
+                } else {
+                    //si added otherwise did not seem to return data.
                     if (async && callback) callback(data);
                     return data;
                 }
             case Utils.Constants.DEFLATED:
                 var inflater = new Methods.Inflater(compressedData);
                 if (!async) {
-                    var result = inflater.inflate(data);
+                    const result = inflater.inflate(data);
                     result.copy(data, 0);
                     if (!crc32OK(data)) {
                         throw new Error(Utils.Errors.BAD_CRC + " " + _entryName.toString());
                     }
                     return data;
                 } else {
-                    inflater.inflateAsync(function(result) {
-                        result.copy(data, 0);
-                        if (!crc32OK(data)) {
-                            if (callback) callback(data, Utils.Errors.BAD_CRC); //si added error
-                        } else { //si added otherwise did not seem to return data.
-                            if (callback) callback(data);
+                    inflater.inflateAsync(function (result) {
+                        result.copy(result, 0);
+                        if (callback) {
+                            if (!crc32OK(result)) {
+                                callback(result, Utils.Errors.BAD_CRC); //si added error
+                            } else {
+                                callback(result);
+                            }
                         }
                     });
                 }
@@ -6485,7 +8993,7 @@ module.exports = function (/*Buffer*/input) {
         }
     }
 
-    function compress(/*Boolean*/async, /*Function*/callback) {
+    function compress(/*Boolean*/ async, /*Function*/ callback) {
         if ((!uncompressedData || !uncompressedData.length) && Buffer.isBuffer(input)) {
             // no data set or the data wasn't changed to require recompression
             if (async && callback) callback(getCompressedDataFromZip());
@@ -6506,14 +9014,13 @@ module.exports = function (/*Buffer*/input) {
                     return compressedData;
                 default:
                 case Utils.Constants.DEFLATED:
-
                     var deflater = new Methods.Deflater(uncompressedData);
                     if (!async) {
                         var deflated = deflater.deflate();
                         _entryHeader.compressedSize = deflated.length;
                         return deflated;
                     } else {
-                        deflater.deflateAsync(function(data) {
+                        deflater.deflateAsync(function (data) {
                             compressedData = Buffer.alloc(data.length);
                             _entryHeader.compressedSize = data.length;
                             data.copy(compressedData);
@@ -6523,12 +9030,10 @@ module.exports = function (/*Buffer*/input) {
                     deflater = null;
                     break;
             }
+        } else if (async && callback) {
+            callback(Buffer.alloc(0));
         } else {
-            if (async && callback) {
-                callback(Buffer.alloc(0));
-            } else {
-                return Buffer.alloc(0);
-            }
+            return Buffer.alloc(0);
         }
     }
 
@@ -6539,14 +9044,14 @@ module.exports = function (/*Buffer*/input) {
     function parseExtra(data) {
         var offset = 0;
         var signature, size, part;
-        while(offset<data.length) {
+        while (offset < data.length) {
             signature = data.readUInt16LE(offset);
             offset += 2;
             size = data.readUInt16LE(offset);
             offset += 2;
-            part = data.slice(offset, offset+size);
+            part = data.slice(offset, offset + size);
             offset += size;
-            if(Constants.ID_ZIP64 === signature) {
+            if (Constants.ID_ZIP64 === signature) {
                 parseZip64ExtendedInformation(part);
             }
         }
@@ -6556,80 +9061,98 @@ module.exports = function (/*Buffer*/input) {
     function parseZip64ExtendedInformation(data) {
         var size, compressedSize, offset, diskNumStart;
 
-        if(data.length >= Constants.EF_ZIP64_SCOMP) {
+        if (data.length >= Constants.EF_ZIP64_SCOMP) {
             size = readUInt64LE(data, Constants.EF_ZIP64_SUNCOMP);
-            if(_entryHeader.size === Constants.EF_ZIP64_OR_32) {
+            if (_entryHeader.size === Constants.EF_ZIP64_OR_32) {
                 _entryHeader.size = size;
             }
         }
-        if(data.length >= Constants.EF_ZIP64_RHO) {
+        if (data.length >= Constants.EF_ZIP64_RHO) {
             compressedSize = readUInt64LE(data, Constants.EF_ZIP64_SCOMP);
-            if(_entryHeader.compressedSize === Constants.EF_ZIP64_OR_32) {
+            if (_entryHeader.compressedSize === Constants.EF_ZIP64_OR_32) {
                 _entryHeader.compressedSize = compressedSize;
             }
         }
-        if(data.length >= Constants.EF_ZIP64_DSN) {
+        if (data.length >= Constants.EF_ZIP64_DSN) {
             offset = readUInt64LE(data, Constants.EF_ZIP64_RHO);
-            if(_entryHeader.offset === Constants.EF_ZIP64_OR_32) {
+            if (_entryHeader.offset === Constants.EF_ZIP64_OR_32) {
                 _entryHeader.offset = offset;
             }
         }
-        if(data.length >= Constants.EF_ZIP64_DSN+4) {
+        if (data.length >= Constants.EF_ZIP64_DSN + 4) {
             diskNumStart = data.readUInt32LE(Constants.EF_ZIP64_DSN);
-            if(_entryHeader.diskNumStart === Constants.EF_ZIP64_OR_16) {
+            if (_entryHeader.diskNumStart === Constants.EF_ZIP64_OR_16) {
                 _entryHeader.diskNumStart = diskNumStart;
             }
         }
     }
 
-
     return {
-        get entryName () { return _entryName.toString(); },
-        get rawEntryName() { return _entryName; },
-        set entryName (val) {
+        get entryName() {
+            return _entryName.toString();
+        },
+        get rawEntryName() {
+            return _entryName;
+        },
+        set entryName(val) {
             _entryName = Utils.toBuffer(val);
             var lastChar = _entryName[_entryName.length - 1];
-            _isDirectory = (lastChar === 47) || (lastChar === 92);
+            _isDirectory = lastChar === 47 || lastChar === 92;
             _entryHeader.fileNameLength = _entryName.length;
         },
 
-        get extra () { return _extra; },
-        set extra (val) {
+        get extra() {
+            return _extra;
+        },
+        set extra(val) {
             _extra = val;
             _entryHeader.extraLength = val.length;
             parseExtra(val);
         },
 
-        get comment () { return _comment.toString(); },
-        set comment (val) {
+        get comment() {
+            return _comment.toString();
+        },
+        set comment(val) {
             _comment = Utils.toBuffer(val);
             _entryHeader.commentLength = _comment.length;
         },
 
-        get name () { var n = _entryName.toString(); return _isDirectory ? n.substr(n.length - 1).split("/").pop() : n.split("/").pop(); },
-        get isDirectory () { return _isDirectory },
-
-        getCompressedData : function() {
-            return compress(false, null)
+        get name() {
+            var n = _entryName.toString();
+            return _isDirectory
+                ? n
+                      .substr(n.length - 1)
+                      .split("/")
+                      .pop()
+                : n.split("/").pop();
+        },
+        get isDirectory() {
+            return _isDirectory;
         },
 
-        getCompressedDataAsync : function(/*Function*/callback) {
-            compress(true, callback)
+        getCompressedData: function () {
+            return compress(false, null);
         },
 
-        setData : function(value) {
+        getCompressedDataAsync: function (/*Function*/ callback) {
+            compress(true, callback);
+        },
+
+        setData: function (value) {
             uncompressedData = Utils.toBuffer(value);
             if (!_isDirectory && uncompressedData.length) {
                 _entryHeader.size = uncompressedData.length;
                 _entryHeader.method = Utils.Constants.DEFLATED;
                 _entryHeader.crc = Utils.crc32(value);
                 _entryHeader.changed = true;
-            } else { // folders and blank files should be stored
+            } else {
+                // folders and blank files should be stored
                 _entryHeader.method = Utils.Constants.STORED;
             }
         },
 
-        getData : function(pass) {
+        getData: function (pass) {
             if (_entryHeader.changed) {
                 return uncompressedData;
             } else {
@@ -6637,7 +9160,7 @@ module.exports = function (/*Buffer*/input) {
             }
         },
 
-        getDataAsync : function(/*Function*/callback, pass) {
+        getDataAsync: function (/*Function*/ callback, pass) {
             if (_entryHeader.changed) {
                 callback(uncompressedData);
             } else {
@@ -6645,10 +9168,14 @@ module.exports = function (/*Buffer*/input) {
             }
         },
 
-        set attr(attr) { _entryHeader.attr = attr; },
-        get attr() { return _entryHeader.attr; },
+        set attr(attr) {
+            _entryHeader.attr = attr;
+        },
+        get attr() {
+            return _entryHeader.attr;
+        },
 
-        set header(/*Buffer*/data) {
+        set header(/*Buffer*/ data) {
             _entryHeader.loadFromBinary(data);
         },
 
@@ -6656,7 +9183,7 @@ module.exports = function (/*Buffer*/input) {
             return _entryHeader;
         },
 
-        packHeader : function() {
+        packHeader: function () {
             // 1. create header (buffer)
             var header = _entryHeader.entryHeaderToBinary();
             var addpos = Utils.Constants.CENHDR;
@@ -6675,18 +9202,26 @@ module.exports = function (/*Buffer*/input) {
             return header;
         },
 
-        toString : function() {
-            return '{\n' +
-                '\t"entryName" : "' + _entryName.toString() + "\",\n" +
-                '\t"name" : "' + (_isDirectory ? _entryName.toString().replace(/\/$/, '').split("/").pop() : _entryName.toString().split("/").pop()) + "\",\n" +
-                '\t"comment" : "' + _comment.toString() + "\",\n" +
-                '\t"isDirectory" : ' + _isDirectory + ",\n" +
-                '\t"header" : ' + _entryHeader.toString().replace(/\t/mg, "\t\t").replace(/}/mg, "\t}")  + ",\n" +
-                '\t"compressedData" : <' + (input && input.length  + " bytes buffer" || "null") + ">\n" +
-                '\t"data" : <' + (uncompressedData && uncompressedData.length  + " bytes buffer" || "null") + ">\n" +
-                '}';
+        toJSON: function () {
+            const bytes = function (nr) {
+                return "<" + ((nr && nr.length + " bytes buffer") || "null") + ">";
+            };
+
+            return {
+                entryName: this.entryName,
+                name: this.name,
+                comment: this.comment,
+                isDirectory: this.isDirectory,
+                header: _entryHeader.toJSON(),
+                compressedData: bytes(input),
+                data: bytes(uncompressedData)
+            };
+        },
+
+        toString: function () {
+            return JSON.stringify(this.toJSON(), null, "\t");
         }
-    }
+    };
 };
 
 
@@ -6699,7 +9234,7 @@ const ZipEntry = __nccwpck_require__(847);
 const Headers = __nccwpck_require__(484);
 const Utils = __nccwpck_require__(4305);
 
-module.exports = function (/*Buffer|null*/inBuffer, /** object */options) {
+module.exports = function (/*Buffer|null*/ inBuffer, /** object */ options) {
     var entryList = [],
         entryTable = {},
         _comment = Buffer.alloc(0),
@@ -6709,7 +9244,9 @@ module.exports = function (/*Buffer|null*/inBuffer, /** object */options) {
     // assign options
     const opts = Object.assign(Object.create(null), options);
 
-    if (inBuffer){
+    const { noSort } = opts;
+
+    if (inBuffer) {
         // is a memory buffer
         readMainHeader(opts.readEntries);
     } else {
@@ -6717,385 +9254,365 @@ module.exports = function (/*Buffer|null*/inBuffer, /** object */options) {
         loadedEntries = true;
     }
 
-	function iterateEntries(callback) {
-		const totalEntries = mainHeader.diskEntries; // total number of entries
-		let index = mainHeader.offset; // offset of first CEN header
+    function iterateEntries(callback) {
+        const totalEntries = mainHeader.diskEntries; // total number of entries
+        let index = mainHeader.offset; // offset of first CEN header
 
-		for (let i = 0; i < totalEntries; i++) {
-			let tmp = index;
-			const entry = new ZipEntry(inBuffer);
+        for (let i = 0; i < totalEntries; i++) {
+            let tmp = index;
+            const entry = new ZipEntry(inBuffer);
 
-			entry.header = inBuffer.slice(tmp, tmp += Utils.Constants.CENHDR);
-			entry.entryName = inBuffer.slice(tmp, tmp += entry.header.fileNameLength);
+            entry.header = inBuffer.slice(tmp, (tmp += Utils.Constants.CENHDR));
+            entry.entryName = inBuffer.slice(tmp, (tmp += entry.header.fileNameLength));
 
-			index += entry.header.entryHeaderSize;
+            index += entry.header.entryHeaderSize;
 
-			callback(entry);
-		}
-	}
+            callback(entry);
+        }
+    }
 
-	function readEntries() {
-		loadedEntries = true;
-		entryTable = {};
-		entryList = new Array(mainHeader.diskEntries);  // total number of entries
-		var index = mainHeader.offset;  // offset of first CEN header
-		for (var i = 0; i < entryList.length; i++) {
+    function readEntries() {
+        loadedEntries = true;
+        entryTable = {};
+        entryList = new Array(mainHeader.diskEntries); // total number of entries
+        var index = mainHeader.offset; // offset of first CEN header
+        for (var i = 0; i < entryList.length; i++) {
+            var tmp = index,
+                entry = new ZipEntry(inBuffer);
+            entry.header = inBuffer.slice(tmp, (tmp += Utils.Constants.CENHDR));
 
-			var tmp = index,
-				entry = new ZipEntry(inBuffer);
-			entry.header = inBuffer.slice(tmp, tmp += Utils.Constants.CENHDR);
+            entry.entryName = inBuffer.slice(tmp, (tmp += entry.header.fileNameLength));
 
-			entry.entryName = inBuffer.slice(tmp, tmp += entry.header.fileNameLength);
+            if (entry.header.extraLength) {
+                entry.extra = inBuffer.slice(tmp, (tmp += entry.header.extraLength));
+            }
 
-			if (entry.header.extraLength) {
-				entry.extra = inBuffer.slice(tmp, tmp += entry.header.extraLength);
-			}
+            if (entry.header.commentLength) entry.comment = inBuffer.slice(tmp, tmp + entry.header.commentLength);
 
-			if (entry.header.commentLength)
-				entry.comment = inBuffer.slice(tmp, tmp + entry.header.commentLength);
+            index += entry.header.entryHeaderSize;
 
-			index += entry.header.entryHeaderSize;
-
-			entryList[i] = entry;
-			entryTable[entry.entryName] = entry;
-		}
-	}
+            entryList[i] = entry;
+            entryTable[entry.entryName] = entry;
+        }
+    }
 
     function readMainHeader(/*Boolean*/ readNow) {
-		var i = inBuffer.length - Utils.Constants.ENDHDR, // END header size
-			max = Math.max(0, i - 0xFFFF), // 0xFFFF is the max zip file comment length
-			n = max,
-			endStart = inBuffer.length,
-			endOffset = -1, // Start offset of the END header
-			commentEnd = 0;
+        var i = inBuffer.length - Utils.Constants.ENDHDR, // END header size
+            max = Math.max(0, i - 0xffff), // 0xFFFF is the max zip file comment length
+            n = max,
+            endStart = inBuffer.length,
+            endOffset = -1, // Start offset of the END header
+            commentEnd = 0;
 
-		for (i; i >= n; i--) {
-			if (inBuffer[i] !== 0x50) continue; // quick check that the byte is 'P'
-			if (inBuffer.readUInt32LE(i) === Utils.Constants.ENDSIG) { // "PK\005\006"
-				endOffset = i;
-				commentEnd = i;
-				endStart = i + Utils.Constants.ENDHDR;
-				// We already found a regular signature, let's look just a bit further to check if there's any zip64 signature
-				n = i - Utils.Constants.END64HDR;
-				continue;
-			}
+        for (i; i >= n; i--) {
+            if (inBuffer[i] !== 0x50) continue; // quick check that the byte is 'P'
+            if (inBuffer.readUInt32LE(i) === Utils.Constants.ENDSIG) {
+                // "PK\005\006"
+                endOffset = i;
+                commentEnd = i;
+                endStart = i + Utils.Constants.ENDHDR;
+                // We already found a regular signature, let's look just a bit further to check if there's any zip64 signature
+                n = i - Utils.Constants.END64HDR;
+                continue;
+            }
 
-			if (inBuffer.readUInt32LE(i) === Utils.Constants.END64SIG) {
-				// Found a zip64 signature, let's continue reading the whole zip64 record
-				n = max;
-				continue;
-			}
+            if (inBuffer.readUInt32LE(i) === Utils.Constants.END64SIG) {
+                // Found a zip64 signature, let's continue reading the whole zip64 record
+                n = max;
+                continue;
+            }
 
-			if (inBuffer.readUInt32LE(i) == Utils.Constants.ZIP64SIG) {
-				// Found the zip64 record, let's determine it's size
-				endOffset = i;
-				endStart = i + Utils.readBigUInt64LE(inBuffer, i + Utils.Constants.ZIP64SIZE) + Utils.Constants.ZIP64LEAD;
-				break;
-			}
-		}
+            if (inBuffer.readUInt32LE(i) === Utils.Constants.ZIP64SIG) {
+                // Found the zip64 record, let's determine it's size
+                endOffset = i;
+                endStart = i + Utils.readBigUInt64LE(inBuffer, i + Utils.Constants.ZIP64SIZE) + Utils.Constants.ZIP64LEAD;
+                break;
+            }
+        }
 
-		if (!~endOffset)
-			throw new Error(Utils.Errors.INVALID_FORMAT);
+        if (!~endOffset) throw new Error(Utils.Errors.INVALID_FORMAT);
 
-		mainHeader.loadFromBinary(inBuffer.slice(endOffset, endStart));
-		if (mainHeader.commentLength) {
-			_comment = inBuffer.slice(commentEnd + Utils.Constants.ENDHDR);
-		}
+        mainHeader.loadFromBinary(inBuffer.slice(endOffset, endStart));
+        if (mainHeader.commentLength) {
+            _comment = inBuffer.slice(commentEnd + Utils.Constants.ENDHDR);
+        }
         if (readNow) readEntries();
     }
 
-	return {
-		/**
-		 * Returns an array of ZipEntry objects existent in the current opened archive
-		 * @return Array
-		 */
-		get entries() {
-			if (!loadedEntries) {
-				readEntries();
-			}
-			return entryList;
-		},
+    function sortEntries() {
+        if (entryList.length > 1 && !noSort) {
+            entryList.sort((a, b) => a.entryName.toLowerCase().localeCompare(b.entryName.toLowerCase()));
+        }
+    }
 
-		/**
-		 * Archive comment
-		 * @return {String}
-		 */
-		get comment() {
-			return _comment.toString();
-		},
-		set comment(val) {
-			_comment = Utils.toBuffer(val);
-			mainHeader.commentLength = _comment.length;
-		},
+    return {
+        /**
+         * Returns an array of ZipEntry objects existent in the current opened archive
+         * @return Array
+         */
+        get entries() {
+            if (!loadedEntries) {
+                readEntries();
+            }
+            return entryList;
+        },
 
-		getEntryCount: function() {
-			if (!loadedEntries) {
-				return mainHeader.diskEntries;
-			}
+        /**
+         * Archive comment
+         * @return {String}
+         */
+        get comment() {
+            return _comment.toString();
+        },
+        set comment(val) {
+            _comment = Utils.toBuffer(val);
+            mainHeader.commentLength = _comment.length;
+        },
 
-			return entryList.length;
-		},
+        getEntryCount: function () {
+            if (!loadedEntries) {
+                return mainHeader.diskEntries;
+            }
 
-		forEach: function(callback) {
-			if (!loadedEntries) {
-				iterateEntries(callback);
-				return;
-			}
+            return entryList.length;
+        },
 
-			entryList.forEach(callback);
-		},
+        forEach: function (callback) {
+            if (!loadedEntries) {
+                iterateEntries(callback);
+                return;
+            }
 
-		/**
-		 * Returns a reference to the entry with the given name or null if entry is inexistent
-		 *
-		 * @param entryName
-		 * @return ZipEntry
-		 */
-		getEntry: function (/*String*/entryName) {
-			if (!loadedEntries) {
-				readEntries();
-			}
-			return entryTable[entryName] || null;
-		},
+            entryList.forEach(callback);
+        },
 
-		/**
-		 * Adds the given entry to the entry list
-		 *
-		 * @param entry
-		 */
-		setEntry: function (/*ZipEntry*/entry) {
-			if (!loadedEntries) {
-				readEntries();
-			}
-			entryList.push(entry);
-			entryTable[entry.entryName] = entry;
-			mainHeader.totalEntries = entryList.length;
-		},
+        /**
+         * Returns a reference to the entry with the given name or null if entry is inexistent
+         *
+         * @param entryName
+         * @return ZipEntry
+         */
+        getEntry: function (/*String*/ entryName) {
+            if (!loadedEntries) {
+                readEntries();
+            }
+            return entryTable[entryName] || null;
+        },
 
-		/**
-		 * Removes the entry with the given name from the entry list.
-		 *
-		 * If the entry is a directory, then all nested files and directories will be removed
-		 * @param entryName
-		 */
-		deleteEntry: function (/*String*/entryName) {
-			if (!loadedEntries) {
-				readEntries();
-			}
-			var entry = entryTable[entryName];
-			if (entry && entry.isDirectory) {
-				var _self = this;
-				this.getEntryChildren(entry).forEach(function (child) {
-					if (child.entryName !== entryName) {
-						_self.deleteEntry(child.entryName)
-					}
-				})
-			}
-			entryList.splice(entryList.indexOf(entry), 1);
-			delete(entryTable[entryName]);
-			mainHeader.totalEntries = entryList.length;
-		},
+        /**
+         * Adds the given entry to the entry list
+         *
+         * @param entry
+         */
+        setEntry: function (/*ZipEntry*/ entry) {
+            if (!loadedEntries) {
+                readEntries();
+            }
+            entryList.push(entry);
+            entryTable[entry.entryName] = entry;
+            mainHeader.totalEntries = entryList.length;
+        },
 
-		/**
-		 *  Iterates and returns all nested files and directories of the given entry
-		 *
-		 * @param entry
-		 * @return Array
-		 */
-		getEntryChildren: function (/*ZipEntry*/entry) {
-			if (!loadedEntries) {
-				readEntries();
-			}
-			if (entry.isDirectory) {
-				var list = [],
-					name = entry.entryName,
-					len = name.length;
+        /**
+         * Removes the entry with the given name from the entry list.
+         *
+         * If the entry is a directory, then all nested files and directories will be removed
+         * @param entryName
+         */
+        deleteEntry: function (/*String*/ entryName) {
+            if (!loadedEntries) {
+                readEntries();
+            }
+            var entry = entryTable[entryName];
+            if (entry && entry.isDirectory) {
+                var _self = this;
+                this.getEntryChildren(entry).forEach(function (child) {
+                    if (child.entryName !== entryName) {
+                        _self.deleteEntry(child.entryName);
+                    }
+                });
+            }
+            entryList.splice(entryList.indexOf(entry), 1);
+            delete entryTable[entryName];
+            mainHeader.totalEntries = entryList.length;
+        },
 
-				entryList.forEach(function (zipEntry) {
-					if (zipEntry.entryName.substr(0, len) === name) {
-						list.push(zipEntry);
-					}
-				});
-				return list;
-			}
-			return []
-		},
+        /**
+         *  Iterates and returns all nested files and directories of the given entry
+         *
+         * @param entry
+         * @return Array
+         */
+        getEntryChildren: function (/*ZipEntry*/ entry) {
+            if (!loadedEntries) {
+                readEntries();
+            }
+            if (entry && entry.isDirectory) {
+                const list = [];
+                const name = entry.entryName;
+                const len = name.length;
 
-		/**
-		 * Returns the zip file
-		 *
-		 * @return Buffer
-		 */
-		compressToBuffer: function () {
-			if (!loadedEntries) {
-				readEntries();
-			}
-			if (entryList.length > 1) {
-				entryList.sort(function (a, b) {
-					var nameA = a.entryName.toLowerCase();
-					var nameB = b.entryName.toLowerCase();
-					if (nameA < nameB) {
-						return -1
-					}
-					if (nameA > nameB) {
-						return 1
-					}
-					return 0;
-				});
-			}
+                entryList.forEach(function (zipEntry) {
+                    if (zipEntry.entryName.substr(0, len) === name) {
+                        list.push(zipEntry);
+                    }
+                });
+                return list;
+            }
+            return [];
+        },
 
-			var totalSize = 0,
-				dataBlock = [],
-				entryHeaders = [],
-				dindex = 0;
+        /**
+         * Returns the zip file
+         *
+         * @return Buffer
+         */
+        compressToBuffer: function () {
+            if (!loadedEntries) {
+                readEntries();
+            }
+            sortEntries();
 
-			mainHeader.size = 0;
-			mainHeader.offset = 0;
+            const dataBlock = [];
+            const entryHeaders = [];
+            let totalSize = 0;
+            let dindex = 0;
 
-			entryList.forEach(function (entry) {
-				// compress data and set local and entry header accordingly. Reason why is called first
-				var compressedData = entry.getCompressedData();
-				// data header
-				entry.header.offset = dindex;
-				var dataHeader = entry.header.dataHeaderToBinary();
-				var entryNameLen = entry.rawEntryName.length;
-				var extra = entry.extra.toString();
-				var postHeader = Buffer.alloc(entryNameLen + extra.length);
-				entry.rawEntryName.copy(postHeader, 0);
-				postHeader.fill(extra, entryNameLen);
+            mainHeader.size = 0;
+            mainHeader.offset = 0;
 
-				var dataLength = dataHeader.length + postHeader.length + compressedData.length;
+            for (const entry of entryList) {
+                // compress data and set local and entry header accordingly. Reason why is called first
+                const compressedData = entry.getCompressedData();
+                // 1. construct data header
+                entry.header.offset = dindex;
+                const dataHeader = entry.header.dataHeaderToBinary();
+                const entryNameLen = entry.rawEntryName.length;
+                // 1.2. postheader - data after data header
+                const postHeader = Buffer.alloc(entryNameLen + entry.extra.length);
+                entry.rawEntryName.copy(postHeader, 0);
+                postHeader.copy(entry.extra, entryNameLen);
 
-				dindex += dataLength;
+                // 2. offsets
+                const dataLength = dataHeader.length + postHeader.length + compressedData.length;
+                dindex += dataLength;
 
-				dataBlock.push(dataHeader);
-				dataBlock.push(postHeader);
-				dataBlock.push(compressedData);
+                // 3. store values in sequence
+                dataBlock.push(dataHeader);
+                dataBlock.push(postHeader);
+                dataBlock.push(compressedData);
 
-				var entryHeader = entry.packHeader();
-				entryHeaders.push(entryHeader);
-				mainHeader.size += entryHeader.length;
-				totalSize += (dataLength + entryHeader.length);
-			});
+                // 4. construct entry header
+                const entryHeader = entry.packHeader();
+                entryHeaders.push(entryHeader);
+                // 5. update main header
+                mainHeader.size += entryHeader.length;
+                totalSize += dataLength + entryHeader.length;
+            }
 
-			totalSize += mainHeader.mainHeaderSize; // also includes zip file comment length
-			// point to end of data and beginning of central directory first record
-			mainHeader.offset = dindex;
+            totalSize += mainHeader.mainHeaderSize; // also includes zip file comment length
+            // point to end of data and beginning of central directory first record
+            mainHeader.offset = dindex;
 
-			dindex = 0;
-			var outBuffer = Buffer.alloc(totalSize);
-			dataBlock.forEach(function (content) {
-				content.copy(outBuffer, dindex); // write data blocks
-				dindex += content.length;
-			});
-			entryHeaders.forEach(function (content) {
-				content.copy(outBuffer, dindex); // write central directory entries
-				dindex += content.length;
-			});
+            dindex = 0;
+            const outBuffer = Buffer.alloc(totalSize);
+            // write data blocks
+            for (const content of dataBlock) {
+                content.copy(outBuffer, dindex);
+                dindex += content.length;
+            }
 
-			var mh = mainHeader.toBinary();
-			if (_comment) {
-				Buffer.from(_comment).copy(mh, Utils.Constants.ENDHDR); // add zip file comment
-			}
+            // write central directory entries
+            for (const content of entryHeaders) {
+                content.copy(outBuffer, dindex);
+                dindex += content.length;
+            }
 
-			mh.copy(outBuffer, dindex); // write main header
+            // write main header
+            const mh = mainHeader.toBinary();
+            if (_comment) {
+                _comment.copy(mh, Utils.Constants.ENDHDR); // add zip file comment
+            }
+            mh.copy(outBuffer, dindex);
 
-			return outBuffer;
-		},
+            return outBuffer;
+        },
 
-		toAsyncBuffer: function (/*Function*/onSuccess, /*Function*/onFail, /*Function*/onItemStart, /*Function*/onItemEnd) {
-			if (!loadedEntries) {
-				readEntries();
-			}
-			if (entryList.length > 1) {
-				entryList.sort(function (a, b) {
-					var nameA = a.entryName.toLowerCase();
-					var nameB = b.entryName.toLowerCase();
-					if (nameA > nameB) {
-						return -1
-					}
-					if (nameA < nameB) {
-						return 1
-					}
-					return 0;
-				});
-			}
+        toAsyncBuffer: function (/*Function*/ onSuccess, /*Function*/ onFail, /*Function*/ onItemStart, /*Function*/ onItemEnd) {
+            try {
+                if (!loadedEntries) {
+                    readEntries();
+                }
+                sortEntries();
 
-			var totalSize = 0,
-				dataBlock = [],
-				entryHeaders = [],
-				dindex = 0;
+                const dataBlock = [];
+                const entryHeaders = [];
+                let totalSize = 0;
+                let dindex = 0;
 
-			mainHeader.size = 0;
-			mainHeader.offset = 0;
+                mainHeader.size = 0;
+                mainHeader.offset = 0;
 
-			var compress = function (entryList) {
-				var self = arguments.callee;
-				if (entryList.length) {
-					var entry = entryList.pop();
-					var name = entry.entryName + entry.extra.toString();
-					if (onItemStart) onItemStart(name);
-					entry.getCompressedDataAsync(function (compressedData) {
-						if (onItemEnd) onItemEnd(name);
+                const compress2Buffer = function (entryLists) {
+                    if (entryLists.length) {
+                        const entry = entryLists.pop();
+                        const name = entry.entryName + entry.extra.toString();
+                        if (onItemStart) onItemStart(name);
+                        entry.getCompressedDataAsync(function (compressedData) {
+                            if (onItemEnd) onItemEnd(name);
 
-						entry.header.offset = dindex;
-						// data header
-						var dataHeader = entry.header.dataHeaderToBinary();
-						var postHeader;
-						try {
-							postHeader = Buffer.alloc(name.length, name);  // using alloc will work on node  5.x+
-						} catch(e){
-							postHeader = new Buffer(name); // use deprecated method if alloc fails...
-						}
-						var dataLength = dataHeader.length + postHeader.length + compressedData.length;
+                            entry.header.offset = dindex;
+                            // data header
+                            const dataHeader = entry.header.dataHeaderToBinary();
+                            const postHeader = Buffer.alloc(name.length, name);
+                            const dataLength = dataHeader.length + postHeader.length + compressedData.length;
 
-						dindex += dataLength;
+                            dindex += dataLength;
 
-						dataBlock.push(dataHeader);
-						dataBlock.push(postHeader);
-						dataBlock.push(compressedData);
+                            dataBlock.push(dataHeader);
+                            dataBlock.push(postHeader);
+                            dataBlock.push(compressedData);
 
-						var entryHeader = entry.packHeader();
-						entryHeaders.push(entryHeader);
-						mainHeader.size += entryHeader.length;
-						totalSize += (dataLength + entryHeader.length);
+                            const entryHeader = entry.packHeader();
+                            entryHeaders.push(entryHeader);
+                            mainHeader.size += entryHeader.length;
+                            totalSize += dataLength + entryHeader.length;
 
-						if (entryList.length) {
-							self(entryList);
-						} else {
+                            compress2Buffer(entryLists);
+                        });
+                    } else {
+                        totalSize += mainHeader.mainHeaderSize; // also includes zip file comment length
+                        // point to end of data and beginning of central directory first record
+                        mainHeader.offset = dindex;
 
+                        dindex = 0;
+                        const outBuffer = Buffer.alloc(totalSize);
+                        dataBlock.forEach(function (content) {
+                            content.copy(outBuffer, dindex); // write data blocks
+                            dindex += content.length;
+                        });
+                        entryHeaders.forEach(function (content) {
+                            content.copy(outBuffer, dindex); // write central directory entries
+                            dindex += content.length;
+                        });
 
-							totalSize += mainHeader.mainHeaderSize; // also includes zip file comment length
-							// point to end of data and beginning of central directory first record
-							mainHeader.offset = dindex;
+                        const mh = mainHeader.toBinary();
+                        if (_comment) {
+                            _comment.copy(mh, Utils.Constants.ENDHDR); // add zip file comment
+                        }
 
-							dindex = 0;
-							var outBuffer = Buffer.alloc(totalSize);
-							dataBlock.forEach(function (content) {
-								content.copy(outBuffer, dindex); // write data blocks
-								dindex += content.length;
-							});
-							entryHeaders.forEach(function (content) {
-								content.copy(outBuffer, dindex); // write central directory entries
-								dindex += content.length;
-							});
+                        mh.copy(outBuffer, dindex); // write main header
 
-							var mh = mainHeader.toBinary();
-							if (_comment) {
-								_comment.copy(mh, Utils.Constants.ENDHDR); // add zip file comment
-							}
+                        onSuccess(outBuffer);
+                    }
+                };
 
-							mh.copy(outBuffer, dindex); // write main header
-
-							onSuccess(outBuffer);
-						}
-					});
-				}
-			};
-
-			compress(entryList);
-		}
-	}
+                compress2Buffer(entryList);
+            } catch (e) {
+                onFail(e);
+            }
+        }
+    };
 };
 
 
@@ -7168,9 +9685,16 @@ module.exports = function httpAdapter(config) {
     var headers = config.headers;
 
     // Set User-Agent (required by some servers)
-    // Only set header if it hasn't been set in config
     // See https://github.com/axios/axios/issues/69
-    if (!headers['User-Agent'] && !headers['user-agent']) {
+    if ('User-Agent' in headers || 'user-agent' in headers) {
+      // User-Agent is specified; handle case where no UA header is desired
+      if (!headers['User-Agent'] && !headers['user-agent']) {
+        delete headers['User-Agent'];
+        delete headers['user-agent'];
+      }
+      // Otherwise, use specified value
+    } else {
+      // Only set header if it hasn't been set in config
       headers['User-Agent'] = 'axios/' + pkg.version;
     }
 
@@ -7345,11 +9869,13 @@ module.exports = function httpAdapter(config) {
         settle(resolve, reject, response);
       } else {
         var responseBuffer = [];
+        var totalResponseBytes = 0;
         stream.on('data', function handleStreamData(chunk) {
           responseBuffer.push(chunk);
+          totalResponseBytes += chunk.length;
 
           // make sure the content length is not over the maxContentLength if specified
-          if (config.maxContentLength > -1 && Buffer.concat(responseBuffer).length > config.maxContentLength) {
+          if (config.maxContentLength > -1 && totalResponseBytes > config.maxContentLength) {
             stream.destroy();
             reject(createError('maxContentLength size of ' + config.maxContentLength + ' exceeded',
               config, null, lastRequest));
@@ -7384,14 +9910,33 @@ module.exports = function httpAdapter(config) {
 
     // Handle request timeout
     if (config.timeout) {
+      // This is forcing a int timeout to avoid problems if the `req` interface doesn't handle other types.
+      var timeout = parseInt(config.timeout, 10);
+
+      if (isNaN(timeout)) {
+        reject(createError(
+          'error trying to parse `config.timeout` to int',
+          config,
+          'ERR_PARSE_TIMEOUT',
+          req
+        ));
+
+        return;
+      }
+
       // Sometime, the response will be very slow, and does not respond, the connect event will be block by event loop system.
       // And timer callback will be fired, and abort() will be invoked before connection, then get "socket hang up" and code ECONNRESET.
       // At this time, if we have a large number of request, nodejs will hang up some socket on background. and the number will up and up.
       // And then these socket which be hang up will devoring CPU little by little.
       // ClientRequest.setTimeout will be fired on the specify milliseconds, and can make sure that abort() will be fired after connect.
-      req.setTimeout(config.timeout, function handleRequestTimeout() {
+      req.setTimeout(timeout, function handleRequestTimeout() {
         req.abort();
-        reject(createError('timeout of ' + config.timeout + 'ms exceeded', config, 'ECONNABORTED', req));
+        reject(createError(
+          'timeout of ' + timeout + 'ms exceeded',
+          config,
+          config.transitional && config.transitional.clarifyTimeoutError ? 'ETIMEDOUT' : 'ECONNABORTED',
+          req
+        ));
       });
     }
 
@@ -7438,6 +9983,7 @@ module.exports = function xhrAdapter(config) {
   return new Promise(function dispatchXhrRequest(resolve, reject) {
     var requestData = config.data;
     var requestHeaders = config.headers;
+    var responseType = config.responseType;
 
     if (utils.isFormData(requestData)) {
       delete requestHeaders['Content-Type']; // Let the browser set it
@@ -7458,23 +10004,14 @@ module.exports = function xhrAdapter(config) {
     // Set the request timeout in MS
     request.timeout = config.timeout;
 
-    // Listen for ready state
-    request.onreadystatechange = function handleLoad() {
-      if (!request || request.readyState !== 4) {
+    function onloadend() {
+      if (!request) {
         return;
       }
-
-      // The request errored out and we didn't get a response, this will be
-      // handled by onerror instead
-      // With one exception: request that using file: protocol, most browsers
-      // will return status as 0 even though it's a successful request
-      if (request.status === 0 && !(request.responseURL && request.responseURL.indexOf('file:') === 0)) {
-        return;
-      }
-
       // Prepare the response
       var responseHeaders = 'getAllResponseHeaders' in request ? parseHeaders(request.getAllResponseHeaders()) : null;
-      var responseData = !config.responseType || config.responseType === 'text' ? request.responseText : request.response;
+      var responseData = !responseType || responseType === 'text' ||  responseType === 'json' ?
+        request.responseText : request.response;
       var response = {
         data: responseData,
         status: request.status,
@@ -7488,7 +10025,30 @@ module.exports = function xhrAdapter(config) {
 
       // Clean up request
       request = null;
-    };
+    }
+
+    if ('onloadend' in request) {
+      // Use onloadend if available
+      request.onloadend = onloadend;
+    } else {
+      // Listen for ready state to emulate onloadend
+      request.onreadystatechange = function handleLoad() {
+        if (!request || request.readyState !== 4) {
+          return;
+        }
+
+        // The request errored out and we didn't get a response, this will be
+        // handled by onerror instead
+        // With one exception: request that using file: protocol, most browsers
+        // will return status as 0 even though it's a successful request
+        if (request.status === 0 && !(request.responseURL && request.responseURL.indexOf('file:') === 0)) {
+          return;
+        }
+        // readystate handler is calling before onerror or ontimeout handlers,
+        // so we should call onloadend on the next 'tick'
+        setTimeout(onloadend);
+      };
+    }
 
     // Handle browser request cancellation (as opposed to a manual cancellation)
     request.onabort = function handleAbort() {
@@ -7518,7 +10078,10 @@ module.exports = function xhrAdapter(config) {
       if (config.timeoutErrorMessage) {
         timeoutErrorMessage = config.timeoutErrorMessage;
       }
-      reject(createError(timeoutErrorMessage, config, 'ECONNABORTED',
+      reject(createError(
+        timeoutErrorMessage,
+        config,
+        config.transitional && config.transitional.clarifyTimeoutError ? 'ETIMEDOUT' : 'ECONNABORTED',
         request));
 
       // Clean up request
@@ -7558,16 +10121,8 @@ module.exports = function xhrAdapter(config) {
     }
 
     // Add responseType to request if needed
-    if (config.responseType) {
-      try {
-        request.responseType = config.responseType;
-      } catch (e) {
-        // Expected DOMException thrown by browsers not compatible XMLHttpRequest Level 2.
-        // But, this can be suppressed for 'json' type as it can be parsed by default 'transformResponse' function.
-        if (config.responseType !== 'json') {
-          throw e;
-        }
-      }
+    if (responseType && responseType !== 'json') {
+      request.responseType = config.responseType;
     }
 
     // Handle progress if needed
@@ -7786,7 +10341,9 @@ var buildURL = __nccwpck_require__(6569);
 var InterceptorManager = __nccwpck_require__(64);
 var dispatchRequest = __nccwpck_require__(4211);
 var mergeConfig = __nccwpck_require__(3897);
+var validator = __nccwpck_require__(9446);
 
+var validators = validator.validators;
 /**
  * Create a new instance of Axios
  *
@@ -7826,20 +10383,71 @@ Axios.prototype.request = function request(config) {
     config.method = 'get';
   }
 
-  // Hook up interceptors middleware
-  var chain = [dispatchRequest, undefined];
-  var promise = Promise.resolve(config);
+  var transitional = config.transitional;
 
+  if (transitional !== undefined) {
+    validator.assertOptions(transitional, {
+      silentJSONParsing: validators.transitional(validators.boolean, '1.0.0'),
+      forcedJSONParsing: validators.transitional(validators.boolean, '1.0.0'),
+      clarifyTimeoutError: validators.transitional(validators.boolean, '1.0.0')
+    }, false);
+  }
+
+  // filter out skipped interceptors
+  var requestInterceptorChain = [];
+  var synchronousRequestInterceptors = true;
   this.interceptors.request.forEach(function unshiftRequestInterceptors(interceptor) {
-    chain.unshift(interceptor.fulfilled, interceptor.rejected);
+    if (typeof interceptor.runWhen === 'function' && interceptor.runWhen(config) === false) {
+      return;
+    }
+
+    synchronousRequestInterceptors = synchronousRequestInterceptors && interceptor.synchronous;
+
+    requestInterceptorChain.unshift(interceptor.fulfilled, interceptor.rejected);
   });
 
+  var responseInterceptorChain = [];
   this.interceptors.response.forEach(function pushResponseInterceptors(interceptor) {
-    chain.push(interceptor.fulfilled, interceptor.rejected);
+    responseInterceptorChain.push(interceptor.fulfilled, interceptor.rejected);
   });
 
-  while (chain.length) {
-    promise = promise.then(chain.shift(), chain.shift());
+  var promise;
+
+  if (!synchronousRequestInterceptors) {
+    var chain = [dispatchRequest, undefined];
+
+    Array.prototype.unshift.apply(chain, requestInterceptorChain);
+    chain = chain.concat(responseInterceptorChain);
+
+    promise = Promise.resolve(config);
+    while (chain.length) {
+      promise = promise.then(chain.shift(), chain.shift());
+    }
+
+    return promise;
+  }
+
+
+  var newConfig = config;
+  while (requestInterceptorChain.length) {
+    var onFulfilled = requestInterceptorChain.shift();
+    var onRejected = requestInterceptorChain.shift();
+    try {
+      newConfig = onFulfilled(newConfig);
+    } catch (error) {
+      onRejected(error);
+      break;
+    }
+  }
+
+  try {
+    promise = dispatchRequest(newConfig);
+  } catch (error) {
+    return Promise.reject(error);
+  }
+
+  while (responseInterceptorChain.length) {
+    promise = promise.then(responseInterceptorChain.shift(), responseInterceptorChain.shift());
   }
 
   return promise;
@@ -7898,10 +10506,12 @@ function InterceptorManager() {
  *
  * @return {Number} An ID used to remove interceptor later
  */
-InterceptorManager.prototype.use = function use(fulfilled, rejected) {
+InterceptorManager.prototype.use = function use(fulfilled, rejected, options) {
   this.handlers.push({
     fulfilled: fulfilled,
-    rejected: rejected
+    rejected: rejected,
+    synchronous: options ? options.synchronous : false,
+    runWhen: options ? options.runWhen : null
   });
   return this.handlers.length - 1;
 };
@@ -8025,7 +10635,8 @@ module.exports = function dispatchRequest(config) {
   config.headers = config.headers || {};
 
   // Transform request data
-  config.data = transformData(
+  config.data = transformData.call(
+    config,
     config.data,
     config.headers,
     config.transformRequest
@@ -8051,7 +10662,8 @@ module.exports = function dispatchRequest(config) {
     throwIfCancellationRequested(config);
 
     // Transform response data
-    response.data = transformData(
+    response.data = transformData.call(
+      config,
       response.data,
       response.headers,
       config.transformResponse
@@ -8064,7 +10676,8 @@ module.exports = function dispatchRequest(config) {
 
       // Transform response data
       if (reason && reason.response) {
-        reason.response.data = transformData(
+        reason.response.data = transformData.call(
+          config,
           reason.response.data,
           reason.response.headers,
           config.transformResponse
@@ -8264,6 +10877,7 @@ module.exports = function settle(resolve, reject, response) {
 
 
 var utils = __nccwpck_require__(1338);
+var defaults = __nccwpck_require__(9410);
 
 /**
  * Transform the data for a request or a response
@@ -8274,9 +10888,10 @@ var utils = __nccwpck_require__(1338);
  * @returns {*} The resulting transformed data
  */
 module.exports = function transformData(data, headers, fns) {
+  var context = this || defaults;
   /*eslint no-param-reassign:0*/
   utils.forEach(fns, function transform(fn) {
-    data = fn(data, headers);
+    data = fn.call(context, data, headers);
   });
 
   return data;
@@ -8293,6 +10908,7 @@ module.exports = function transformData(data, headers, fns) {
 
 var utils = __nccwpck_require__(1338);
 var normalizeHeaderName = __nccwpck_require__(10);
+var enhanceError = __nccwpck_require__(8575);
 
 var DEFAULT_CONTENT_TYPE = {
   'Content-Type': 'application/x-www-form-urlencoded'
@@ -8316,12 +10932,35 @@ function getDefaultAdapter() {
   return adapter;
 }
 
+function stringifySafely(rawValue, parser, encoder) {
+  if (utils.isString(rawValue)) {
+    try {
+      (parser || JSON.parse)(rawValue);
+      return utils.trim(rawValue);
+    } catch (e) {
+      if (e.name !== 'SyntaxError') {
+        throw e;
+      }
+    }
+  }
+
+  return (encoder || JSON.stringify)(rawValue);
+}
+
 var defaults = {
+
+  transitional: {
+    silentJSONParsing: true,
+    forcedJSONParsing: true,
+    clarifyTimeoutError: false
+  },
+
   adapter: getDefaultAdapter(),
 
   transformRequest: [function transformRequest(data, headers) {
     normalizeHeaderName(headers, 'Accept');
     normalizeHeaderName(headers, 'Content-Type');
+
     if (utils.isFormData(data) ||
       utils.isArrayBuffer(data) ||
       utils.isBuffer(data) ||
@@ -8338,20 +10977,32 @@ var defaults = {
       setContentTypeIfUnset(headers, 'application/x-www-form-urlencoded;charset=utf-8');
       return data.toString();
     }
-    if (utils.isObject(data)) {
-      setContentTypeIfUnset(headers, 'application/json;charset=utf-8');
-      return JSON.stringify(data);
+    if (utils.isObject(data) || (headers && headers['Content-Type'] === 'application/json')) {
+      setContentTypeIfUnset(headers, 'application/json');
+      return stringifySafely(data);
     }
     return data;
   }],
 
   transformResponse: [function transformResponse(data) {
-    /*eslint no-param-reassign:0*/
-    if (typeof data === 'string') {
+    var transitional = this.transitional;
+    var silentJSONParsing = transitional && transitional.silentJSONParsing;
+    var forcedJSONParsing = transitional && transitional.forcedJSONParsing;
+    var strictJSONParsing = !silentJSONParsing && this.responseType === 'json';
+
+    if (strictJSONParsing || (forcedJSONParsing && utils.isString(data) && data.length)) {
       try {
-        data = JSON.parse(data);
-      } catch (e) { /* Ignore */ }
+        return JSON.parse(data);
+      } catch (e) {
+        if (strictJSONParsing) {
+          if (e.name === 'SyntaxError') {
+            throw enhanceError(e, this, 'E_JSON_PARSE');
+          }
+          throw e;
+        }
+      }
     }
+
     return data;
   }],
 
@@ -8804,6 +11455,119 @@ module.exports = function spread(callback) {
 
 /***/ }),
 
+/***/ 9446:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+var pkg = __nccwpck_require__(2995);
+
+var validators = {};
+
+// eslint-disable-next-line func-names
+['object', 'boolean', 'number', 'function', 'string', 'symbol'].forEach(function(type, i) {
+  validators[type] = function validator(thing) {
+    return typeof thing === type || 'a' + (i < 1 ? 'n ' : ' ') + type;
+  };
+});
+
+var deprecatedWarnings = {};
+var currentVerArr = pkg.version.split('.');
+
+/**
+ * Compare package versions
+ * @param {string} version
+ * @param {string?} thanVersion
+ * @returns {boolean}
+ */
+function isOlderVersion(version, thanVersion) {
+  var pkgVersionArr = thanVersion ? thanVersion.split('.') : currentVerArr;
+  var destVer = version.split('.');
+  for (var i = 0; i < 3; i++) {
+    if (pkgVersionArr[i] > destVer[i]) {
+      return true;
+    } else if (pkgVersionArr[i] < destVer[i]) {
+      return false;
+    }
+  }
+  return false;
+}
+
+/**
+ * Transitional option validator
+ * @param {function|boolean?} validator
+ * @param {string?} version
+ * @param {string} message
+ * @returns {function}
+ */
+validators.transitional = function transitional(validator, version, message) {
+  var isDeprecated = version && isOlderVersion(version);
+
+  function formatMessage(opt, desc) {
+    return '[Axios v' + pkg.version + '] Transitional option \'' + opt + '\'' + desc + (message ? '. ' + message : '');
+  }
+
+  // eslint-disable-next-line func-names
+  return function(value, opt, opts) {
+    if (validator === false) {
+      throw new Error(formatMessage(opt, ' has been removed in ' + version));
+    }
+
+    if (isDeprecated && !deprecatedWarnings[opt]) {
+      deprecatedWarnings[opt] = true;
+      // eslint-disable-next-line no-console
+      console.warn(
+        formatMessage(
+          opt,
+          ' has been deprecated since v' + version + ' and will be removed in the near future'
+        )
+      );
+    }
+
+    return validator ? validator(value, opt, opts) : true;
+  };
+};
+
+/**
+ * Assert object's properties type
+ * @param {object} options
+ * @param {object} schema
+ * @param {boolean?} allowUnknown
+ */
+
+function assertOptions(options, schema, allowUnknown) {
+  if (typeof options !== 'object') {
+    throw new TypeError('options must be an object');
+  }
+  var keys = Object.keys(options);
+  var i = keys.length;
+  while (i-- > 0) {
+    var opt = keys[i];
+    var validator = schema[opt];
+    if (validator) {
+      var value = options[opt];
+      var result = value === undefined || validator(value, opt, options);
+      if (result !== true) {
+        throw new TypeError('option ' + opt + ' must be ' + result);
+      }
+      continue;
+    }
+    if (allowUnknown !== true) {
+      throw Error('Unknown option ' + opt);
+    }
+  }
+}
+
+module.exports = {
+  isOlderVersion: isOlderVersion,
+  assertOptions: assertOptions,
+  validators: validators
+};
+
+
+/***/ }),
+
 /***/ 1338:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -8811,8 +11575,6 @@ module.exports = function spread(callback) {
 
 
 var bind = __nccwpck_require__(5228);
-
-/*global toString:true*/
 
 // utils is a library of generic helper functions non-specific to axios
 
@@ -8997,7 +11759,7 @@ function isURLSearchParams(val) {
  * @returns {String} The String freed of excess whitespace
  */
 function trim(str) {
-  return str.replace(/^\s*/, '').replace(/\s*$/, '');
+  return str.trim ? str.trim() : str.replace(/^\s+|\s+$/g, '');
 }
 
 /**
@@ -10018,7 +12780,8 @@ module.exports = function () {
       /* eslint global-require: off */
       debug = __nccwpck_require__(2512)("follow-redirects");
     }
-    catch (error) {
+    catch (error) { /* */ }
+    if (typeof debug !== "function") {
       debug = function () { /* */ };
     }
   }
@@ -10180,10 +12943,8 @@ RedirectableRequest.prototype.removeHeader = function (name) {
 // Global timeout for all underlying requests
 RedirectableRequest.prototype.setTimeout = function (msecs, callback) {
   var self = this;
-  if (callback) {
-    this.on("timeout", callback);
-  }
 
+  // Destroys the socket on timeout
   function destroyOnTimeout(socket) {
     socket.setTimeout(msecs);
     socket.removeListener("timeout", socket.destroy);
@@ -10202,18 +12963,26 @@ RedirectableRequest.prototype.setTimeout = function (msecs, callback) {
     destroyOnTimeout(socket);
   }
 
-  // Prevent a timeout from triggering
+  // Stops a timeout from triggering
   function clearTimer() {
-    clearTimeout(this._timeout);
+    if (self._timeout) {
+      clearTimeout(self._timeout);
+      self._timeout = null;
+    }
     if (callback) {
       self.removeListener("timeout", callback);
     }
-    if (!this.socket) {
+    if (!self.socket) {
       self._currentRequest.removeListener("socket", startTimer);
     }
   }
 
-  // Start the timer when the socket is opened
+  // Attach callback if passed
+  if (callback) {
+    this.on("timeout", callback);
+  }
+
+  // Start the timer if or when the socket is opened
   if (this.socket) {
     startTimer(this.socket);
   }
@@ -10221,6 +12990,7 @@ RedirectableRequest.prototype.setTimeout = function (msecs, callback) {
     this._currentRequest.once("socket", startTimer);
   }
 
+  // Clean up on events
   this.on("socket", destroyOnTimeout);
   this.once("response", clearTimer);
   this.once("error", clearTimer);
@@ -13756,85 +16526,6 @@ function plural(ms, msAbs, n, name) {
 
 /***/ }),
 
-/***/ 9053:
-/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
-
-"use strict";
-
-const Queue = __nccwpck_require__(4251);
-
-const pLimit = concurrency => {
-	if (!((Number.isInteger(concurrency) || concurrency === Infinity) && concurrency > 0)) {
-		throw new TypeError('Expected `concurrency` to be a number from 1 and up');
-	}
-
-	const queue = new Queue();
-	let activeCount = 0;
-
-	const next = () => {
-		activeCount--;
-
-		if (queue.size > 0) {
-			queue.dequeue()();
-		}
-	};
-
-	const run = async (fn, resolve, ...args) => {
-		activeCount++;
-
-		const result = (async () => fn(...args))();
-
-		resolve(result);
-
-		try {
-			await result;
-		} catch {}
-
-		next();
-	};
-
-	const enqueue = (fn, resolve, ...args) => {
-		queue.enqueue(run.bind(null, fn, resolve, ...args));
-
-		(async () => {
-			// This function needs to wait until the next microtask before comparing
-			// `activeCount` to `concurrency`, because `activeCount` is updated asynchronously
-			// when the run function is dequeued and called. The comparison in the if-statement
-			// needs to happen asynchronously as well to get an up-to-date value for `activeCount`.
-			await Promise.resolve();
-
-			if (activeCount < concurrency && queue.size > 0) {
-				queue.dequeue()();
-			}
-		})();
-	};
-
-	const generator = (fn, ...args) => new Promise(resolve => {
-		enqueue(fn, resolve, ...args);
-	});
-
-	Object.defineProperties(generator, {
-		activeCount: {
-			get: () => activeCount
-		},
-		pendingCount: {
-			get: () => queue.size
-		},
-		clearQueue: {
-			value: () => {
-				queue.clear();
-			}
-		}
-	});
-
-	return generator;
-};
-
-module.exports = pLimit;
-
-
-/***/ }),
-
 /***/ 2227:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -14006,81 +16697,6 @@ exports.fromPromise = function (fn) {
 
 /***/ }),
 
-/***/ 4251:
-/***/ ((module) => {
-
-class Node {
-	/// value;
-	/// next;
-
-	constructor(value) {
-		this.value = value;
-
-		// TODO: Remove this when targeting Node.js 12.
-		this.next = undefined;
-	}
-}
-
-class Queue {
-	// TODO: Use private class fields when targeting Node.js 12.
-	// #_head;
-	// #_tail;
-	// #_size;
-
-	constructor() {
-		this.clear();
-	}
-
-	enqueue(value) {
-		const node = new Node(value);
-
-		if (this._head) {
-			this._tail.next = node;
-			this._tail = node;
-		} else {
-			this._head = node;
-			this._tail = node;
-		}
-
-		this._size++;
-	}
-
-	dequeue() {
-		const current = this._head;
-		if (!current) {
-			return;
-		}
-
-		this._head = this._head.next;
-		this._size--;
-		return current.value;
-	}
-
-	clear() {
-		this._head = undefined;
-		this._tail = undefined;
-		this._size = 0;
-	}
-
-	get size() {
-		return this._size;
-	}
-
-	* [Symbol.iterator]() {
-		let current = this._head;
-
-		while (current) {
-			yield current.value;
-			current = current.next;
-		}
-	}
-}
-
-module.exports = Queue;
-
-
-/***/ }),
-
 /***/ 2161:
 /***/ ((module) => {
 
@@ -14093,7 +16709,7 @@ module.exports = eval("require")("original-fs");
 /***/ ((module) => {
 
 "use strict";
-module.exports = JSON.parse('{"author":{"name":"Matt Zabriskie"},"browser":{"./lib/adapters/http.js":"./lib/adapters/xhr.js"},"bugs":{"url":"https://github.com/axios/axios/issues"},"bundlesize":[{"path":"./dist/axios.min.js","threshold":"5kB"}],"dependencies":{"follow-redirects":"^1.10.0"},"description":"Promise based HTTP client for the browser and node.js","devDependencies":{"bundlesize":"^0.17.0","coveralls":"^3.0.0","es6-promise":"^4.2.4","grunt":"^1.0.2","grunt-banner":"^0.6.0","grunt-cli":"^1.2.0","grunt-contrib-clean":"^1.1.0","grunt-contrib-watch":"^1.0.0","grunt-eslint":"^20.1.0","grunt-karma":"^2.0.0","grunt-mocha-test":"^0.13.3","grunt-ts":"^6.0.0-beta.19","grunt-webpack":"^1.0.18","istanbul-instrumenter-loader":"^1.0.0","jasmine-core":"^2.4.1","karma":"^1.3.0","karma-chrome-launcher":"^2.2.0","karma-coverage":"^1.1.1","karma-firefox-launcher":"^1.1.0","karma-jasmine":"^1.1.1","karma-jasmine-ajax":"^0.1.13","karma-opera-launcher":"^1.0.0","karma-safari-launcher":"^1.0.0","karma-sauce-launcher":"^1.2.0","karma-sinon":"^1.0.5","karma-sourcemap-loader":"^0.3.7","karma-webpack":"^1.7.0","load-grunt-tasks":"^3.5.2","minimist":"^1.2.0","mocha":"^5.2.0","sinon":"^4.5.0","typescript":"^2.8.1","url-search-params":"^0.10.0","webpack":"^1.13.1","webpack-dev-server":"^1.14.1"},"homepage":"https://github.com/axios/axios","jsdelivr":"dist/axios.min.js","keywords":["xhr","http","ajax","promise","node"],"license":"MIT","main":"index.js","name":"axios","repository":{"type":"git","url":"git+https://github.com/axios/axios.git"},"scripts":{"build":"NODE_ENV=production grunt build","coveralls":"cat coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js","examples":"node ./examples/server.js","fix":"eslint --fix lib/**/*.js","postversion":"git push && git push --tags","preversion":"npm test","start":"node ./sandbox/server.js","test":"grunt test && bundlesize","version":"npm run build && grunt version && git add -A dist && git add CHANGELOG.md bower.json package.json"},"typings":"./index.d.ts","unpkg":"dist/axios.min.js","version":"0.21.1"}');
+module.exports = JSON.parse('{"name":"axios","version":"0.21.4","description":"Promise based HTTP client for the browser and node.js","main":"index.js","scripts":{"test":"grunt test","start":"node ./sandbox/server.js","build":"NODE_ENV=production grunt build","preversion":"npm test","version":"npm run build && grunt version && git add -A dist && git add CHANGELOG.md bower.json package.json","postversion":"git push && git push --tags","examples":"node ./examples/server.js","coveralls":"cat coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js","fix":"eslint --fix lib/**/*.js"},"repository":{"type":"git","url":"https://github.com/axios/axios.git"},"keywords":["xhr","http","ajax","promise","node"],"author":"Matt Zabriskie","license":"MIT","bugs":{"url":"https://github.com/axios/axios/issues"},"homepage":"https://axios-http.com","devDependencies":{"coveralls":"^3.0.0","es6-promise":"^4.2.4","grunt":"^1.3.0","grunt-banner":"^0.6.0","grunt-cli":"^1.2.0","grunt-contrib-clean":"^1.1.0","grunt-contrib-watch":"^1.0.0","grunt-eslint":"^23.0.0","grunt-karma":"^4.0.0","grunt-mocha-test":"^0.13.3","grunt-ts":"^6.0.0-beta.19","grunt-webpack":"^4.0.2","istanbul-instrumenter-loader":"^1.0.0","jasmine-core":"^2.4.1","karma":"^6.3.2","karma-chrome-launcher":"^3.1.0","karma-firefox-launcher":"^2.1.0","karma-jasmine":"^1.1.1","karma-jasmine-ajax":"^0.1.13","karma-safari-launcher":"^1.0.0","karma-sauce-launcher":"^4.3.6","karma-sinon":"^1.0.5","karma-sourcemap-loader":"^0.3.8","karma-webpack":"^4.0.2","load-grunt-tasks":"^3.5.2","minimist":"^1.2.0","mocha":"^8.2.1","sinon":"^4.5.0","terser-webpack-plugin":"^4.2.3","typescript":"^4.0.5","url-search-params":"^0.10.0","webpack":"^4.44.2","webpack-dev-server":"^3.11.0"},"browser":{"./lib/adapters/http.js":"./lib/adapters/xhr.js"},"jsdelivr":"dist/axios.min.js","unpkg":"dist/axios.min.js","typings":"./index.d.ts","dependencies":{"follow-redirects":"^1.14.0"},"bundlesize":[{"path":"./dist/axios.min.js","threshold":"5kB"}]}');
 
 /***/ }),
 
@@ -14297,8 +16913,145 @@ var lib = __nccwpck_require__(5501);
 var adm_zip = __nccwpck_require__(3465);
 // EXTERNAL MODULE: ../node_modules/@actions/core/lib/core.js
 var core = __nccwpck_require__(5316);
-// EXTERNAL MODULE: ../node_modules/p-limit/index.js
-var p_limit = __nccwpck_require__(9053);
+;// CONCATENATED MODULE: ../node_modules/yocto-queue/index.js
+/*
+How it works:
+`this.#head` is an instance of `Node` which keeps track of its current value and nests another instance of `Node` that keeps the value that comes after it. When a value is provided to `.enqueue()`, the code needs to iterate through `this.#head`, going deeper and deeper to find the last value. However, iterating through every single item is slow. This problem is solved by saving a reference to the last value as `this.#tail` so that it can reference it to add a new value.
+*/
+
+class Node {
+	value;
+	next;
+
+	constructor(value) {
+		this.value = value;
+	}
+}
+
+class Queue {
+	#head;
+	#tail;
+	#size;
+
+	constructor() {
+		this.clear();
+	}
+
+	enqueue(value) {
+		const node = new Node(value);
+
+		if (this.#head) {
+			this.#tail.next = node;
+			this.#tail = node;
+		} else {
+			this.#head = node;
+			this.#tail = node;
+		}
+
+		this.#size++;
+	}
+
+	dequeue() {
+		const current = this.#head;
+		if (!current) {
+			return;
+		}
+
+		this.#head = this.#head.next;
+		this.#size--;
+		return current.value;
+	}
+
+	clear() {
+		this.#head = undefined;
+		this.#tail = undefined;
+		this.#size = 0;
+	}
+
+	get size() {
+		return this.#size;
+	}
+
+	* [Symbol.iterator]() {
+		let current = this.#head;
+
+		while (current) {
+			yield current.value;
+			current = current.next;
+		}
+	}
+}
+
+;// CONCATENATED MODULE: ../node_modules/p-limit/index.js
+
+
+function pLimit(concurrency) {
+	if (!((Number.isInteger(concurrency) || concurrency === Number.POSITIVE_INFINITY) && concurrency > 0)) {
+		throw new TypeError('Expected `concurrency` to be a number from 1 and up');
+	}
+
+	const queue = new Queue();
+	let activeCount = 0;
+
+	const next = () => {
+		activeCount--;
+
+		if (queue.size > 0) {
+			queue.dequeue()();
+		}
+	};
+
+	const run = async (fn, resolve, args) => {
+		activeCount++;
+
+		const result = (async () => fn(...args))();
+
+		resolve(result);
+
+		try {
+			await result;
+		} catch {}
+
+		next();
+	};
+
+	const enqueue = (fn, resolve, args) => {
+		queue.enqueue(run.bind(undefined, fn, resolve, args));
+
+		(async () => {
+			// This function needs to wait until the next microtask before comparing
+			// `activeCount` to `concurrency`, because `activeCount` is updated asynchronously
+			// when the run function is dequeued and called. The comparison in the if-statement
+			// needs to happen asynchronously as well to get an up-to-date value for `activeCount`.
+			await Promise.resolve();
+
+			if (activeCount < concurrency && queue.size > 0) {
+				queue.dequeue()();
+			}
+		})();
+	};
+
+	const generator = (fn, ...args) => new Promise(resolve => {
+		enqueue(fn, resolve, args);
+	});
+
+	Object.defineProperties(generator, {
+		activeCount: {
+			get: () => activeCount,
+		},
+		pendingCount: {
+			get: () => queue.size,
+		},
+		clearQueue: {
+			value: () => {
+				queue.clear();
+			},
+		},
+	});
+
+	return generator;
+}
+
 // EXTERNAL MODULE: ../node_modules/@crowdin/crowdin-api-client/out/index.js
 var out = __nccwpck_require__(5085);
 var out_default = /*#__PURE__*/__nccwpck_require__.n(out);
@@ -14371,7 +17124,7 @@ const strings = {
 const { reportsApi, translationsApi, usersApi, projectsGroupsApi, sourceFilesApi, sourceStringsApi, translationStatusApi } = new (out_default())({
     token: process.env.CROWDIN_PAT
 });
-const requestLimit = p_limit(promisesLimit);
+const requestLimit = pLimit(promisesLimit);
 function emptyTranslationDir(dirPath) {
     for (const file of lib.readdirSync(dirPath)) {
         if (file !== `${src_strings.language.locale}.ini`) {

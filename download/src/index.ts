@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fse from 'fs-extra';
 import * as Zip from 'adm-zip';
 import * as core from '@actions/core';
-import * as plimit from 'p-limit';
+import plimit from 'p-limit';
 import Crowdin, { ReportsModel, UsersModel } from '@crowdin/crowdin-api-client';
 
 import { wait, execute, normalize } from '../../shared/utils';

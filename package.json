@@ -1,30 +1,39 @@
 {
+	"name": "obs-crowdin-sync",
+	"version": "0.1.0",
+	"private": true,
+	"bugs": "https://github.com/obsproject/crowdin-synchronization/issues",
+	"license": "GPL-3.0-or-later",
 	"scripts": {
 		"build": "removeNPMAbsolutePaths node_modules && cd download && tsc && ncc build out/download/src/index.js && cd ../upload && tsc && ncc build out/upload/src/index.js",
 		"lint": "eslint --fix {download,upload}/src/** shared/**"
 	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/obsproject/crowdin-synchronization.git"
+	},
 	"dependencies": {
 		"@actions/core": "^1.4.0",
-		"@crowdin/crowdin-api-client": "^1.11.3",
-		"adm-zip": "^0.5.5",
+		"@crowdin/crowdin-api-client": "^1.12.3",
+		"adm-zip": "^0.5.9",
 		"axios": "^0.21.1",
 		"fs-extra": "^10.0.0",
-		"p-limit": "^3.1.0"
+		"p-limit": "^4.0.0"
 	},
 	"devDependencies": {
 		"@types/adm-zip": "^0.4.34",
-		"@types/fs-extra": "^9.0.12",
-		"@types/node": "^16.4.10",
+		"@types/fs-extra": "^9.0.13",
+		"@types/node": "^16.11.4",
 		"@typescript-eslint/eslint-plugin": "^4.29.0",
 		"@typescript-eslint/parser": "^4.29.0",
-		"@vercel/ncc": "^0.29.0",
+		"@vercel/ncc": "^0.31.1",
 		"eslint": "^7.32.0",
 		"eslint-config-standard": "^16.0.3",
-		"eslint-plugin-import": "^2.23.4",
-		"eslint-plugin-jsdoc": "^36.0.6",
+		"eslint-plugin-import": "^2.25.0",
+		"eslint-plugin-jsdoc": "^37.0.0",
 		"eslint-plugin-node": "^11.1.0",
 		"eslint-plugin-only-warn": "^1.0.3",
-		"eslint-plugin-promise": "^5.1.0",
+		"eslint-plugin-promise": "^5.1.1",
 		"removeNPMAbsolutePaths": "^2.0.0",
 		"typescript": "^4.3.5"
 	}
