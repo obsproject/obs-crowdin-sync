@@ -8,10 +8,16 @@ import * as ACTION from '@actions/core';
 
 import STRINGS from './strings';
 import { wait, exec, normalize } from './utils';
-import { projectId, submodules, sourceEqualityCheck, gitAddAllowList } from './constants';
+import { projectId, submodules, sourceEqualityCheck, gitAddAllowList, CROWDIN_PAT, CROWDIN_ORG, JEST_RUN } from './constants';
+
+if (CROWDIN_PAT && JEST_RUN) {
+	ACTION.error('Environment variable CROWDIN_PAT not provided, skipping action');
+	process.exit(0);
+}
 
 const { reportsApi, translationsApi, usersApi, projectsGroupsApi, sourceFilesApi, sourceStringsApi, translationStatusApi } = new CROWDIN({
-	token: process.env.CROWDIN_PAT!
+	token: CROWDIN_PAT || '',
+	organization: CROWDIN_ORG
 });
 
 /**
@@ -90,17 +96,17 @@ export async function getSourceFiles(filePaths: Map<number, string>): Promise<Ma
 	let currentFileId;
 	let currentFileStrings: Map<string, string> | undefined;
 	while (true) {
-		const data = (
+		const projectStrings = (
 			await sourceStringsApi.listProjectStrings(projectId, {
 				limit: 500,
 				offset: offset
 			})
 		).data;
-		if (data.length === 0) {
+		if (projectStrings.length === 0) {
 			break;
 		}
-		for (const { data: string } of data) {
-			const fileId = string.fileId;
+		for (const { data: sourceString } of projectStrings) {
+			const fileId = sourceString.fileId;
 			if (
 				filePaths.has(fileId) &&
 				!sourceEqualityCheck.includes(filePaths.get(fileId)!.substring(0, filePaths.get(fileId)!.indexOf('/')))
@@ -118,9 +124,7 @@ export async function getSourceFiles(filePaths: Map<number, string>): Promise<Ma
 					currentFileStrings = new Map<string, string>();
 				}
 			}
-			if (typeof string.text === 'string') {
-				currentFileStrings!.set(string.identifier, string.text);
-			}
+			currentFileStrings!.set(sourceString.identifier, sourceString.text as string);
 		}
 		offset += 500;
 	}
@@ -239,7 +243,7 @@ export async function getTranslators(targetLanguageIds: string[]): Promise<strin
  * @returns The build id.
  */
 export async function buildProject(): Promise<number> {
-	if (process.env.CROWDIN_SYNC_SKIP_BUILD) {
+	if (process.env.CROWDIN_ORG) {
 		const { id, status } = (await translationsApi.listProjectBuilds(projectId, undefined, 1)).data[0].data;
 		if (status === 'finished') {
 			return id;
@@ -388,7 +392,7 @@ export async function desktopFile(languageFiles: Map<string, Map<string, string>
 	result += '\n';
 	for (const language of languageFiles.entries()) {
 		for (const translation of language[1].entries()) {
-			result += `${translation[0]}[${language[0]}]=${translation[1]}\n`;
+			result += `${translation[0]}[${language[0].replace('-', '_')}]=${translation[1]}\n`;
 		}
 	}
 	await FSE.writeFile(filePath, result);
@@ -479,7 +483,7 @@ function pushChanges(detachedSubmodules: string[]): void {
 
 // Executes steps simultaneously where possible.
 (async () => {
-	if (process.env.JEST_WORKER_ID !== undefined) {
+	if (JEST_RUN) {
 		return;
 	}
 	try {
