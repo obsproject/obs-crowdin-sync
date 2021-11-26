@@ -3,7 +3,7 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
-    name: ubuntu-latest
+    name: Unit Test
     steps:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v2

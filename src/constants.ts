@@ -1,4 +1,7 @@
-export const projectId = 51028;
+export const projectId = Number(process.env.CROWDIN_PROJECT_ID) || 51028;
+export const CROWDIN_PAT = process.env.CROWDIN_PAT;
+export const CROWDIN_ORG = process.env.CROWDIN_ORG;
+export const JEST_RUN = process.env.JEST_WORKER_ID !== undefined;
 
 export const submodules = ['enc-amf', 'obs-browser', 'obs-vst'];
 export const sourceEqualityCheck = ['UI', 'plugins'];

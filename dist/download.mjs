@@ -5,7 +5,7 @@ import { createRequire as __WEBPACK_EXTERNAL_createRequire } from "module";
 /***/ ((module) => {
 
 "use strict";
-module.exports = JSON.parse('{"author":{"name":"Matt Zabriskie"},"browser":{"./lib/adapters/http.js":"./lib/adapters/xhr.js"},"bugs":{"url":"https://github.com/axios/axios/issues"},"bundlesize":[{"path":"./dist/axios.min.js","threshold":"5kB"}],"dependencies":{"follow-redirects":"^1.14.0"},"description":"Promise based HTTP client for the browser and node.js","devDependencies":{"coveralls":"^3.0.0","es6-promise":"^4.2.4","grunt":"^1.3.0","grunt-banner":"^0.6.0","grunt-cli":"^1.2.0","grunt-contrib-clean":"^1.1.0","grunt-contrib-watch":"^1.0.0","grunt-eslint":"^23.0.0","grunt-karma":"^4.0.0","grunt-mocha-test":"^0.13.3","grunt-ts":"^6.0.0-beta.19","grunt-webpack":"^4.0.2","istanbul-instrumenter-loader":"^1.0.0","jasmine-core":"^2.4.1","karma":"^6.3.2","karma-chrome-launcher":"^3.1.0","karma-firefox-launcher":"^2.1.0","karma-jasmine":"^1.1.1","karma-jasmine-ajax":"^0.1.13","karma-safari-launcher":"^1.0.0","karma-sauce-launcher":"^4.3.6","karma-sinon":"^1.0.5","karma-sourcemap-loader":"^0.3.8","karma-webpack":"^4.0.2","load-grunt-tasks":"^3.5.2","minimist":"^1.2.0","mocha":"^8.2.1","sinon":"^4.5.0","terser-webpack-plugin":"^4.2.3","typescript":"^4.0.5","url-search-params":"^0.10.0","webpack":"^4.44.2","webpack-dev-server":"^3.11.0"},"homepage":"https://axios-http.com","jsdelivr":"dist/axios.min.js","keywords":["xhr","http","ajax","promise","node"],"license":"MIT","main":"index.js","name":"axios","repository":{"type":"git","url":"git+https://github.com/axios/axios.git"},"scripts":{"build":"NODE_ENV=production grunt build","coveralls":"cat coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js","examples":"node ./examples/server.js","fix":"eslint --fix lib/**/*.js","postversion":"git push && git push --tags","preversion":"npm test","start":"node ./sandbox/server.js","test":"grunt test","version":"npm run build && grunt version && git add -A dist && git add CHANGELOG.md bower.json package.json"},"typings":"./index.d.ts","unpkg":"dist/axios.min.js","version":"0.21.3"}');
+module.exports = JSON.parse('{"name":"axios","version":"0.21.3","description":"Promise based HTTP client for the browser and node.js","main":"index.js","scripts":{"test":"grunt test","start":"node ./sandbox/server.js","build":"NODE_ENV=production grunt build","preversion":"npm test","version":"npm run build && grunt version && git add -A dist && git add CHANGELOG.md bower.json package.json","postversion":"git push && git push --tags","examples":"node ./examples/server.js","coveralls":"cat coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js","fix":"eslint --fix lib/**/*.js"},"repository":{"type":"git","url":"https://github.com/axios/axios.git"},"keywords":["xhr","http","ajax","promise","node"],"author":"Matt Zabriskie","license":"MIT","bugs":{"url":"https://github.com/axios/axios/issues"},"homepage":"https://axios-http.com","devDependencies":{"coveralls":"^3.0.0","es6-promise":"^4.2.4","grunt":"^1.3.0","grunt-banner":"^0.6.0","grunt-cli":"^1.2.0","grunt-contrib-clean":"^1.1.0","grunt-contrib-watch":"^1.0.0","grunt-eslint":"^23.0.0","grunt-karma":"^4.0.0","grunt-mocha-test":"^0.13.3","grunt-ts":"^6.0.0-beta.19","grunt-webpack":"^4.0.2","istanbul-instrumenter-loader":"^1.0.0","jasmine-core":"^2.4.1","karma":"^6.3.2","karma-chrome-launcher":"^3.1.0","karma-firefox-launcher":"^2.1.0","karma-jasmine":"^1.1.1","karma-jasmine-ajax":"^0.1.13","karma-safari-launcher":"^1.0.0","karma-sauce-launcher":"^4.3.6","karma-sinon":"^1.0.5","karma-sourcemap-loader":"^0.3.8","karma-webpack":"^4.0.2","load-grunt-tasks":"^3.5.2","minimist":"^1.2.0","mocha":"^8.2.1","sinon":"^4.5.0","terser-webpack-plugin":"^4.2.3","typescript":"^4.0.5","url-search-params":"^0.10.0","webpack":"^4.44.2","webpack-dev-server":"^3.11.0"},"browser":{"./lib/adapters/http.js":"./lib/adapters/xhr.js"},"jsdelivr":"dist/axios.min.js","unpkg":"dist/axios.min.js","typings":"./index.d.ts","dependencies":{"follow-redirects":"^1.14.0"},"bundlesize":[{"path":"./dist/axios.min.js","threshold":"5kB"}]}');
 
 /***/ }),
 
@@ -17446,6 +17446,85 @@ function plural(ms, msAbs, n, name) {
 
 /***/ }),
 
+/***/ 7684:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+const Queue = __nccwpck_require__(5185);
+
+const pLimit = concurrency => {
+	if (!((Number.isInteger(concurrency) || concurrency === Infinity) && concurrency > 0)) {
+		throw new TypeError('Expected `concurrency` to be a number from 1 and up');
+	}
+
+	const queue = new Queue();
+	let activeCount = 0;
+
+	const next = () => {
+		activeCount--;
+
+		if (queue.size > 0) {
+			queue.dequeue()();
+		}
+	};
+
+	const run = async (fn, resolve, ...args) => {
+		activeCount++;
+
+		const result = (async () => fn(...args))();
+
+		resolve(result);
+
+		try {
+			await result;
+		} catch {}
+
+		next();
+	};
+
+	const enqueue = (fn, resolve, ...args) => {
+		queue.enqueue(run.bind(null, fn, resolve, ...args));
+
+		(async () => {
+			// This function needs to wait until the next microtask before comparing
+			// `activeCount` to `concurrency`, because `activeCount` is updated asynchronously
+			// when the run function is dequeued and called. The comparison in the if-statement
+			// needs to happen asynchronously as well to get an up-to-date value for `activeCount`.
+			await Promise.resolve();
+
+			if (activeCount < concurrency && queue.size > 0) {
+				queue.dequeue()();
+			}
+		})();
+	};
+
+	const generator = (fn, ...args) => new Promise(resolve => {
+		enqueue(fn, resolve, ...args);
+	});
+
+	Object.defineProperties(generator, {
+		activeCount: {
+			get: () => activeCount
+		},
+		pendingCount: {
+			get: () => queue.size
+		},
+		clearQueue: {
+			value: () => {
+				queue.clear();
+			}
+		}
+	});
+
+	return generator;
+};
+
+module.exports = pLimit;
+
+
+/***/ }),
+
 /***/ 9318:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -17897,6 +17976,81 @@ exports.fromPromise = function (fn) {
 
 /***/ }),
 
+/***/ 5185:
+/***/ ((module) => {
+
+class Node {
+	/// value;
+	/// next;
+
+	constructor(value) {
+		this.value = value;
+
+		// TODO: Remove this when targeting Node.js 12.
+		this.next = undefined;
+	}
+}
+
+class Queue {
+	// TODO: Use private class fields when targeting Node.js 12.
+	// #_head;
+	// #_tail;
+	// #_size;
+
+	constructor() {
+		this.clear();
+	}
+
+	enqueue(value) {
+		const node = new Node(value);
+
+		if (this._head) {
+			this._tail.next = node;
+			this._tail = node;
+		} else {
+			this._head = node;
+			this._tail = node;
+		}
+
+		this._size++;
+	}
+
+	dequeue() {
+		const current = this._head;
+		if (!current) {
+			return;
+		}
+
+		this._head = this._head.next;
+		this._size--;
+		return current.value;
+	}
+
+	clear() {
+		this._head = undefined;
+		this._tail = undefined;
+		this._size = 0;
+	}
+
+	get size() {
+		return this._size;
+	}
+
+	* [Symbol.iterator]() {
+		let current = this._head;
+
+		while (current) {
+			yield current.value;
+			current = current.next;
+		}
+	}
+}
+
+module.exports = Queue;
+
+
+/***/ }),
+
 /***/ 2941:
 /***/ ((module) => {
 
@@ -18123,145 +18277,9 @@ var axios_default = /*#__PURE__*/__nccwpck_require__.n(axios);
 // EXTERNAL MODULE: ./node_modules/adm-zip/adm-zip.js
 var adm_zip = __nccwpck_require__(6761);
 var adm_zip_default = /*#__PURE__*/__nccwpck_require__.n(adm_zip);
-;// CONCATENATED MODULE: ./node_modules/yocto-queue/index.js
-/*
-How it works:
-`this.#head` is an instance of `Node` which keeps track of its current value and nests another instance of `Node` that keeps the value that comes after it. When a value is provided to `.enqueue()`, the code needs to iterate through `this.#head`, going deeper and deeper to find the last value. However, iterating through every single item is slow. This problem is solved by saving a reference to the last value as `this.#tail` so that it can reference it to add a new value.
-*/
-
-class Node {
-	value;
-	next;
-
-	constructor(value) {
-		this.value = value;
-	}
-}
-
-class Queue {
-	#head;
-	#tail;
-	#size;
-
-	constructor() {
-		this.clear();
-	}
-
-	enqueue(value) {
-		const node = new Node(value);
-
-		if (this.#head) {
-			this.#tail.next = node;
-			this.#tail = node;
-		} else {
-			this.#head = node;
-			this.#tail = node;
-		}
-
-		this.#size++;
-	}
-
-	dequeue() {
-		const current = this.#head;
-		if (!current) {
-			return;
-		}
-
-		this.#head = this.#head.next;
-		this.#size--;
-		return current.value;
-	}
-
-	clear() {
-		this.#head = undefined;
-		this.#tail = undefined;
-		this.#size = 0;
-	}
-
-	get size() {
-		return this.#size;
-	}
-
-	* [Symbol.iterator]() {
-		let current = this.#head;
-
-		while (current) {
-			yield current.value;
-			current = current.next;
-		}
-	}
-}
-
-;// CONCATENATED MODULE: ./node_modules/p-limit/index.js
-
-
-function pLimit(concurrency) {
-	if (!((Number.isInteger(concurrency) || concurrency === Number.POSITIVE_INFINITY) && concurrency > 0)) {
-		throw new TypeError('Expected `concurrency` to be a number from 1 and up');
-	}
-
-	const queue = new Queue();
-	let activeCount = 0;
-
-	const next = () => {
-		activeCount--;
-
-		if (queue.size > 0) {
-			queue.dequeue()();
-		}
-	};
-
-	const run = async (fn, resolve, args) => {
-		activeCount++;
-
-		const result = (async () => fn(...args))();
-
-		resolve(result);
-
-		try {
-			await result;
-		} catch {}
-
-		next();
-	};
-
-	const enqueue = (fn, resolve, args) => {
-		queue.enqueue(run.bind(undefined, fn, resolve, args));
-
-		(async () => {
-			// This function needs to wait until the next microtask before comparing
-			// `activeCount` to `concurrency`, because `activeCount` is updated asynchronously
-			// when the run function is dequeued and called. The comparison in the if-statement
-			// needs to happen asynchronously as well to get an up-to-date value for `activeCount`.
-			await Promise.resolve();
-
-			if (activeCount < concurrency && queue.size > 0) {
-				queue.dequeue()();
-			}
-		})();
-	};
-
-	const generator = (fn, ...args) => new Promise(resolve => {
-		enqueue(fn, resolve, args);
-	});
-
-	Object.defineProperties(generator, {
-		activeCount: {
-			get: () => activeCount,
-		},
-		pendingCount: {
-			get: () => queue.size,
-		},
-		clearQueue: {
-			value: () => {
-				queue.clear();
-			},
-		},
-	});
-
-	return generator;
-}
-
+// EXTERNAL MODULE: ./node_modules/p-limit/index.js
+var p_limit = __nccwpck_require__(7684);
+var p_limit_default = /*#__PURE__*/__nccwpck_require__.n(p_limit);
 // EXTERNAL MODULE: external "path"
 var external_path_ = __nccwpck_require__(5622);
 var external_path_default = /*#__PURE__*/__nccwpck_require__.n(external_path_);
@@ -18341,7 +18359,10 @@ async function fileStructureToObject(filePath) {
 }
 
 ;// CONCATENATED MODULE: ./src/constants.ts
-const projectId = 51028;
+const projectId = Number(process.env.CROWDIN_PROJECT_ID) || 51028;
+const CROWDIN_PAT = process.env.CROWDIN_PAT;
+const CROWDIN_ORG = process.env.CROWDIN_ORG;
+const JEST_RUN = process.env.JEST_WORKER_ID !== undefined;
 const submodules = ['enc-amf', 'obs-browser', 'obs-vst'];
 const sourceEqualityCheck = ['UI', 'plugins'];
 const gitAddAllowList = {
@@ -18369,8 +18390,13 @@ const gitAddAllowList = {
 
 
 
+if (CROWDIN_PAT && JEST_RUN) {
+    core.error('Environment variable CROWDIN_PAT not provided, skipping action');
+    process.exit(0);
+}
 const { reportsApi, translationsApi, usersApi, projectsGroupsApi, sourceFilesApi, sourceStringsApi, translationStatusApi } = new (out_default())({
-    token: process.env.CROWDIN_PAT
+    token: CROWDIN_PAT || '',
+    organization: CROWDIN_ORG
 });
 function emptyTranslationDir(dirPath) {
     for (const file of lib_default().readdirSync(dirPath)) {
@@ -18418,15 +18444,15 @@ async function getSourceFiles(filePaths) {
     let currentFileId;
     let currentFileStrings;
     while (true) {
-        const data = (await sourceStringsApi.listProjectStrings(projectId, {
+        const projectStrings = (await sourceStringsApi.listProjectStrings(projectId, {
             limit: 500,
             offset: offset
         })).data;
-        if (data.length === 0) {
+        if (projectStrings.length === 0) {
             break;
         }
-        for (const { data: string } of data) {
-            const fileId = string.fileId;
+        for (const { data: sourceString } of projectStrings) {
+            const fileId = sourceString.fileId;
             if (filePaths.has(fileId) &&
                 !sourceEqualityCheck.includes(filePaths.get(fileId).substring(0, filePaths.get(fileId).indexOf('/')))) {
                 continue;
@@ -18443,9 +18469,7 @@ async function getSourceFiles(filePaths) {
                     currentFileStrings = new Map();
                 }
             }
-            if (typeof string.text === 'string') {
-                currentFileStrings.set(string.identifier, string.text);
-            }
+            currentFileStrings.set(sourceString.identifier, sourceString.text);
         }
         offset += 500;
     }
@@ -18464,7 +18488,7 @@ function getGitContributors() {
     }
     return output;
 }
-const requestLimit = pLimit(10);
+const requestLimit = p_limit_default()(10);
 async function getTranslators(targetLanguageIds) {
     const blockedUsers = [];
     for (const { data: blockedUser } of (await usersApi.listProjectMembers(projectId, undefined, out.UsersModel.Role.BLOCKED, undefined, 500))
@@ -18527,7 +18551,7 @@ async function getTranslators(targetLanguageIds) {
     return output;
 }
 async function buildProject() {
-    if (process.env.CROWDIN_SYNC_SKIP_BUILD) {
+    if (process.env.CROWDIN_ORG) {
         const { id, status } = (await translationsApi.listProjectBuilds(projectId, undefined, 1)).data[0].data;
         if (status === 'finished') {
             return id;
@@ -18639,7 +18663,7 @@ async function desktopFile(languageFiles) {
     result += '\n';
     for (const language of languageFiles.entries()) {
         for (const translation of language[1].entries()) {
-            result += `${translation[0]}[${language[0]}]=${translation[1]}\n`;
+            result += `${translation[0]}[${language[0].replace('-', '_')}]=${translation[1]}\n`;
         }
     }
     await lib_default().writeFile(filePath, result);
@@ -18715,7 +18739,7 @@ function pushChanges(detachedSubmodules) {
     exec('git push');
 }
 (async () => {
-    if (process.env.JEST_WORKER_ID !== undefined) {
+    if (JEST_RUN) {
         return;
     }
     try {

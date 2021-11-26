@@ -5,7 +5,7 @@ import { createRequire as __WEBPACK_EXTERNAL_createRequire } from "module";
 /***/ ((module) => {
 
 "use strict";
-module.exports = JSON.parse('{"author":{"name":"Matt Zabriskie"},"browser":{"./lib/adapters/http.js":"./lib/adapters/xhr.js"},"bugs":{"url":"https://github.com/axios/axios/issues"},"bundlesize":[{"path":"./dist/axios.min.js","threshold":"5kB"}],"dependencies":{"follow-redirects":"^1.14.0"},"description":"Promise based HTTP client for the browser and node.js","devDependencies":{"coveralls":"^3.0.0","es6-promise":"^4.2.4","grunt":"^1.3.0","grunt-banner":"^0.6.0","grunt-cli":"^1.2.0","grunt-contrib-clean":"^1.1.0","grunt-contrib-watch":"^1.0.0","grunt-eslint":"^23.0.0","grunt-karma":"^4.0.0","grunt-mocha-test":"^0.13.3","grunt-ts":"^6.0.0-beta.19","grunt-webpack":"^4.0.2","istanbul-instrumenter-loader":"^1.0.0","jasmine-core":"^2.4.1","karma":"^6.3.2","karma-chrome-launcher":"^3.1.0","karma-firefox-launcher":"^2.1.0","karma-jasmine":"^1.1.1","karma-jasmine-ajax":"^0.1.13","karma-safari-launcher":"^1.0.0","karma-sauce-launcher":"^4.3.6","karma-sinon":"^1.0.5","karma-sourcemap-loader":"^0.3.8","karma-webpack":"^4.0.2","load-grunt-tasks":"^3.5.2","minimist":"^1.2.0","mocha":"^8.2.1","sinon":"^4.5.0","terser-webpack-plugin":"^4.2.3","typescript":"^4.0.5","url-search-params":"^0.10.0","webpack":"^4.44.2","webpack-dev-server":"^3.11.0"},"homepage":"https://axios-http.com","jsdelivr":"dist/axios.min.js","keywords":["xhr","http","ajax","promise","node"],"license":"MIT","main":"index.js","name":"axios","repository":{"type":"git","url":"git+https://github.com/axios/axios.git"},"scripts":{"build":"NODE_ENV=production grunt build","coveralls":"cat coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js","examples":"node ./examples/server.js","fix":"eslint --fix lib/**/*.js","postversion":"git push && git push --tags","preversion":"npm test","start":"node ./sandbox/server.js","test":"grunt test","version":"npm run build && grunt version && git add -A dist && git add CHANGELOG.md bower.json package.json"},"typings":"./index.d.ts","unpkg":"dist/axios.min.js","version":"0.21.3"}');
+module.exports = JSON.parse('{"name":"axios","version":"0.21.3","description":"Promise based HTTP client for the browser and node.js","main":"index.js","scripts":{"test":"grunt test","start":"node ./sandbox/server.js","build":"NODE_ENV=production grunt build","preversion":"npm test","version":"npm run build && grunt version && git add -A dist && git add CHANGELOG.md bower.json package.json","postversion":"git push && git push --tags","examples":"node ./examples/server.js","coveralls":"cat coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js","fix":"eslint --fix lib/**/*.js"},"repository":{"type":"git","url":"https://github.com/axios/axios.git"},"keywords":["xhr","http","ajax","promise","node"],"author":"Matt Zabriskie","license":"MIT","bugs":{"url":"https://github.com/axios/axios/issues"},"homepage":"https://axios-http.com","devDependencies":{"coveralls":"^3.0.0","es6-promise":"^4.2.4","grunt":"^1.3.0","grunt-banner":"^0.6.0","grunt-cli":"^1.2.0","grunt-contrib-clean":"^1.1.0","grunt-contrib-watch":"^1.0.0","grunt-eslint":"^23.0.0","grunt-karma":"^4.0.0","grunt-mocha-test":"^0.13.3","grunt-ts":"^6.0.0-beta.19","grunt-webpack":"^4.0.2","istanbul-instrumenter-loader":"^1.0.0","jasmine-core":"^2.4.1","karma":"^6.3.2","karma-chrome-launcher":"^3.1.0","karma-firefox-launcher":"^2.1.0","karma-jasmine":"^1.1.1","karma-jasmine-ajax":"^0.1.13","karma-safari-launcher":"^1.0.0","karma-sauce-launcher":"^4.3.6","karma-sinon":"^1.0.5","karma-sourcemap-loader":"^0.3.8","karma-webpack":"^4.0.2","load-grunt-tasks":"^3.5.2","minimist":"^1.2.0","mocha":"^8.2.1","sinon":"^4.5.0","terser-webpack-plugin":"^4.2.3","typescript":"^4.0.5","url-search-params":"^0.10.0","webpack":"^4.44.2","webpack-dev-server":"^3.11.0"},"browser":{"./lib/adapters/http.js":"./lib/adapters/xhr.js"},"jsdelivr":"dist/axios.min.js","unpkg":"dist/axios.min.js","typings":"./index.d.ts","dependencies":{"follow-redirects":"^1.14.0"},"bundlesize":[{"path":"./dist/axios.min.js","threshold":"5kB"}]}');
 
 /***/ }),
 
@@ -12835,6 +12835,28 @@ var external_path_ = __nccwpck_require__(5622);
 var external_path_default = /*#__PURE__*/__nccwpck_require__.n(external_path_);
 // EXTERNAL MODULE: ./node_modules/@actions/core/lib/core.js
 var core = __nccwpck_require__(2186);
+;// CONCATENATED MODULE: ./src/strings.ts
+const strings = {
+    git: {
+        committer: {
+            name: 'Translation Updater',
+            email: '<>'
+        },
+        commitTitle: 'Update translations from Crowdin'
+    },
+    authors: {
+        header: 'Original Author: Hugh Bailey ("Jim")\n\nContributors are sorted by their amount of commits / translated words.\n\n',
+        contributors: 'Contributors',
+        translators: 'Translators',
+        fileName: 'AUTHORS'
+    },
+    language: {
+        locale: 'en-US',
+        name: 'English'
+    }
+};
+/* harmony default export */ const src_strings = (strings);
+
 ;// CONCATENATED MODULE: external "child_process"
 const external_child_process_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("child_process");
 ;// CONCATENATED MODULE: ./src/utils.ts
@@ -12881,7 +12903,10 @@ async function fileStructureToObject(filePath) {
 }
 
 ;// CONCATENATED MODULE: ./src/constants.ts
-const projectId = 51028;
+const projectId = Number(process.env.CROWDIN_PROJECT_ID) || 51028;
+const CROWDIN_PAT = process.env.CROWDIN_PAT;
+const CROWDIN_ORG = process.env.CROWDIN_ORG;
+const JEST_RUN = process.env.JEST_WORKER_ID !== undefined;
 const submodules = (/* unused pure expression or super */ null && (['enc-amf', 'obs-browser', 'obs-vst']));
 const sourceEqualityCheck = (/* unused pure expression or super */ null && (['UI', 'plugins']));
 const gitAddAllowList = {
@@ -12905,12 +12930,18 @@ const gitAddAllowList = {
 
 
 
-const { sourceFilesApi, uploadStorageApi } = new (out_default())({
-    token: process.env.CROWDIN_PAT
+
+if (CROWDIN_PAT && JEST_RUN) {
+    core.error('Environment variable CROWDIN_PAT not provided, skipping action.');
+    process.exit(0);
+}
+const { sourceFilesApi, uploadStorageApi, sourceStringsApi } = new (out_default())({
+    token: CROWDIN_PAT || '',
+    organization: CROWDIN_ORG
 });
 (async () => {
     try {
-        const sourceFiles = new Map();
+        const sourceFilesPaths = new Map();
         for (const { data: sourceFile } of (await sourceFilesApi.listProjectFiles(projectId, {
             limit: 500
         })).data) {
@@ -12918,23 +12949,70 @@ const { sourceFilesApi, uploadStorageApi } = new (out_default())({
             if (!exportOptions) {
                 continue;
             }
-            sourceFiles.set(exportOptions.exportPattern.substr(1).replace('%file_name%', external_path_default().parse(sourceFile.name).name).replace('%locale%', 'en-US'), sourceFile.id);
+            sourceFilesPaths.set(exportOptions.exportPattern
+                .substr(1)
+                .replace('%file_name%', external_path_default().parse(sourceFile.name).name)
+                .replace('%locale%', src_strings.language.locale), sourceFile.id);
         }
-        let failed = 0;
+        const failedFiles = [];
         for (const filePath of normalize(exec(`git diff --name-only ${process.env.GITHUB_EVENT_BEFORE} ${process.env.GITHUB_SHA}`)).split('\n')) {
-            if (sourceFiles.has(filePath)) {
-                await sourceFilesApi.updateOrRestoreFile(projectId, sourceFiles.get(filePath), {
-                    storageId: (await uploadStorageApi.addStorage('File.ini', lib_default().readFileSync(filePath))).data.id
+            if (!filePath.endsWith(`/${src_strings.language.locale}.ini`)) {
+                continue;
+            }
+            if (sourceFilesPaths.has(filePath)) {
+                const fileId = sourceFilesPaths.get(filePath);
+                const previousFileStrings = new Map();
+                let offset = 0;
+                while (true) {
+                    const projectStrings = (await sourceStringsApi.listProjectStrings(projectId, {
+                        fileId: fileId,
+                        limit: 500,
+                        offset: offset
+                    })).data;
+                    if (projectStrings.length === 0) {
+                        break;
+                    }
+                    for (const { data: sourceString } of projectStrings) {
+                        previousFileStrings.set(sourceString.identifier, sourceString.text.replace(/"/g, '\\"'));
+                    }
+                    offset += 500;
+                }
+                let localFileContent = (await lib_default().readFile(filePath)).toString();
+                const localFileContentCopy = localFileContent;
+                let stringsChanged = false;
+                for (const line of normalize(localFileContent).split('\n')) {
+                    if (line.startsWith('#')) {
+                        continue;
+                    }
+                    const stringKey = line.substring(0, line.indexOf('='));
+                    const stringValue = line.substring(line.indexOf('"') + 1, line.lastIndexOf('"'));
+                    if (previousFileStrings.has(stringKey)) {
+                        const previousStringValue = previousFileStrings.get(stringKey);
+                        if (previousStringValue !== stringValue) {
+                            localFileContent = localFileContent.replace(line, `${stringKey}="${previousStringValue}"`);
+                            if (!stringsChanged) {
+                                stringsChanged = true;
+                            }
+                        }
+                    }
+                }
+                await sourceFilesApi.updateOrRestoreFile(projectId, fileId, {
+                    storageId: (await uploadStorageApi.addStorage('File1.ini', localFileContent)).data.id,
+                    updateOption: out.SourceFilesModel.UpdateOption.KEEP_TRANSLATIONS_AND_APPROVALS
                 });
-                core.info(`${filePath} updated on Crowdin.`);
+                if (stringsChanged && localFileContent !== localFileContentCopy) {
+                    await sourceFilesApi.updateOrRestoreFile(projectId, fileId, {
+                        storageId: (await uploadStorageApi.addStorage('File2.ini', localFileContentCopy)).data.id
+                    });
+                }
+                core.notice(`${filePath} updated on Crowdin.`);
             }
             else {
-                core.error(`${filePath} couldn't be found on Crowdin.`);
-                failed++;
+                failedFiles.push(filePath);
             }
         }
-        if (failed) {
-            throw new Error(`${failed} file(s) couldn't be found on Crowdin and their export path needs to be fixed. New files need to be uploaded first manually to be updated.`);
+        if (failedFiles.length !== 0) {
+            throw new Error(`Some files couldn't be found on Crowdin and/or their export paths need to be fixed to get updated:\n ${failedFiles.join('\n ')}`);
         }
     }
     catch (e) {
