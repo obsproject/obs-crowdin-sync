@@ -18368,11 +18368,12 @@ const sourceEqualityCheck = ['UI', 'plugins'];
 const gitAddAllowList = {
     all: [
         'AUTHORS',
-        'UI/data/locale/*-*.ini',
         'plugins/*/data/locale/*-*.ini',
         'plugins/mac-virtualcam/src/obs-plugin/data/locale/*-*.ini',
         'UI/data/locale.ini',
-        'UI/xdg-data/com.obsproject.Studio.desktop'
+        'UI/data/locale/*-*.ini',
+        'UI/xdg-data/com.obsproject.Studio.desktop',
+        'UI/frontend-plugins/*/data/locale/*-*.ini'
     ],
     'enc-amf': 'resources/locale/*-*.ini',
     'obs-browser': 'data/locale/*-*.ini',
@@ -18390,7 +18391,7 @@ const gitAddAllowList = {
 
 
 
-if (CROWDIN_PAT && JEST_RUN) {
+if (!CROWDIN_PAT && !JEST_RUN) {
     core.error('Environment variable CROWDIN_PAT not provided, skipping action');
     process.exit(0);
 }
@@ -18401,15 +18402,22 @@ const { reportsApi, translationsApi, usersApi, projectsGroupsApi, sourceFilesApi
 function emptyTranslationDir(dirPath) {
     for (const file of lib_default().readdirSync(dirPath)) {
         if (file !== `${src_strings.language.locale}.ini`) {
-            lib_default().removeSync(external_path_default().join(dirPath, file));
+            lib_default().removeSync(`${dirPath}/${file}`);
         }
     }
 }
 function removePreviousTranslations() {
-    emptyTranslationDir(external_path_default().join('UI', 'data', 'locale'));
-    emptyTranslationDir(external_path_default().join('plugins', 'enc-amf', 'resources', 'locale'));
-    for (const file of lib_default().readdirSync('plugins')) {
-        const dirPath = external_path_default().join('plugins', file, 'data', 'locale');
+    emptyTranslationDir('UI/data/locale');
+    emptyTranslationDir('plugins/enc-amf/resources/locale');
+    emptyTranslationDir('plugins/mac-virtualcam/src/obs-plugin/data/locale');
+    for (const dir of lib_default().readdirSync('plugins')) {
+        const dirPath = `plugins/${dir}/data/locale`;
+        if (lib_default().existsSync(dirPath) && lib_default().lstatSync(dirPath).isDirectory()) {
+            emptyTranslationDir(dirPath);
+        }
+    }
+    for (const dir of lib_default().readdirSync('UI/frontend-plugins')) {
+        const dirPath = `UI/frontend-plugins/${dir}/data/locale`;
         if (lib_default().existsSync(dirPath) && lib_default().lstatSync(dirPath).isDirectory()) {
             emptyTranslationDir(dirPath);
         }
@@ -18418,7 +18426,7 @@ function removePreviousTranslations() {
 function prepareBuildProcessing() {
     const detachedSubmodules = [];
     for (const submodule of submodules) {
-        process.chdir(external_path_default().join('plugins', submodule));
+        process.chdir(`plugins/${submodule}`);
         if (exec('git diff master HEAD').length !== 0) {
             detachedSubmodules.push(submodule);
         }
@@ -18649,7 +18657,7 @@ async function processBuild(buildId, sourceFiles, filePaths) {
     };
 }
 async function desktopFile(languageFiles) {
-    const filePath = external_path_default().join('UI', 'xdg-data', 'com.obsproject.Studio.desktop');
+    const filePath = 'UI/xdg-data/com.obsproject.Studio.desktop';
     const desktopFile = normalize(await lib_default().readFile(filePath, 'utf-8'));
     let result = '';
     for (const line of desktopFile.split('\n')) {
@@ -18663,7 +18671,7 @@ async function desktopFile(languageFiles) {
     result += '\n';
     for (const language of languageFiles.entries()) {
         for (const translation of language[1].entries()) {
-            result += `${translation[0]}[${language[0].replace('-', '_')}]=${translation[1]}\n`;
+            result += `${translation[0]}[${language[0]}]=${translation[1]}\n`;
         }
     }
     await lib_default().writeFile(filePath, result);
@@ -18674,7 +18682,7 @@ async function localeFile(languageList, languageCodeMap) {
         progressMap.set(language.languageId, language.translationProgress);
     }
     const languagesInList = [];
-    const languagueListPath = external_path_default().join('UI', 'data', 'locale.ini');
+    const languagueListPath = 'UI/data/locale.ini';
     for (const line of normalize(lib_default().readFileSync(languagueListPath, 'utf-8')).split('\n')) {
         if (line.startsWith('[') && line !== `[${src_strings.language.locale}]`) {
             languagesInList.push(line.substring(1, line.length - 1));
@@ -18710,7 +18718,7 @@ function pushChanges(detachedSubmodules) {
     exec(`git config --global user.name '${src_strings.git.committer.name}'`);
     exec(`git config --global user.email '${src_strings.git.committer.email}'`);
     for (const submodule of submodules) {
-        process.chdir(external_path_default().join('plugins', submodule));
+        process.chdir(`plugins/${submodule}`);
         if (exec('git status --porcelain').length === 0) {
             process.chdir('../..');
             continue;

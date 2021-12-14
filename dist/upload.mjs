@@ -12912,11 +12912,12 @@ const sourceEqualityCheck = (/* unused pure expression or super */ null && (['UI
 const gitAddAllowList = {
     all: [
         'AUTHORS',
-        'UI/data/locale/*-*.ini',
         'plugins/*/data/locale/*-*.ini',
         'plugins/mac-virtualcam/src/obs-plugin/data/locale/*-*.ini',
         'UI/data/locale.ini',
-        'UI/xdg-data/com.obsproject.Studio.desktop'
+        'UI/data/locale/*-*.ini',
+        'UI/xdg-data/com.obsproject.Studio.desktop',
+        'UI/frontend-plugins/*/data/locale/*-*.ini'
     ],
     'enc-amf': 'resources/locale/*-*.ini',
     'obs-browser': 'data/locale/*-*.ini',
@@ -12931,7 +12932,7 @@ const gitAddAllowList = {
 
 
 
-if (CROWDIN_PAT && JEST_RUN) {
+if (!CROWDIN_PAT && !JEST_RUN) {
     core.error('Environment variable CROWDIN_PAT not provided, skipping action.');
     process.exit(0);
 }

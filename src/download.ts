@@ -10,7 +10,7 @@ import STRINGS from './strings';
 import { wait, exec, normalize } from './utils';
 import { projectId, submodules, sourceEqualityCheck, gitAddAllowList, CROWDIN_PAT, CROWDIN_ORG, JEST_RUN } from './constants';
 
-if (CROWDIN_PAT && JEST_RUN) {
+if (!CROWDIN_PAT && !JEST_RUN) {
 	ACTION.error('Environment variable CROWDIN_PAT not provided, skipping action');
 	process.exit(0);
 }
@@ -28,7 +28,7 @@ const { reportsApi, translationsApi, usersApi, projectsGroupsApi, sourceFilesApi
 function emptyTranslationDir(dirPath: string): void {
 	for (const file of FSE.readdirSync(dirPath)) {
 		if (file !== `${STRINGS.language.locale}.ini`) {
-			FSE.removeSync(PATH.join(dirPath, file));
+			FSE.removeSync(`${dirPath}/${file}`);
 		}
 	}
 }
@@ -37,10 +37,17 @@ function emptyTranslationDir(dirPath: string): void {
  * Remove all translations to prevent keeping dropped languages.
  */
 function removePreviousTranslations(): void {
-	emptyTranslationDir(PATH.join('UI', 'data', 'locale'));
-	emptyTranslationDir(PATH.join('plugins', 'enc-amf', 'resources', 'locale'));
-	for (const file of FSE.readdirSync('plugins')) {
-		const dirPath = PATH.join('plugins', file, 'data', 'locale');
+	emptyTranslationDir('UI/data/locale');
+	emptyTranslationDir('plugins/enc-amf/resources/locale');
+	emptyTranslationDir('plugins/mac-virtualcam/src/obs-plugin/data/locale');
+	for (const dir of FSE.readdirSync('plugins')) {
+		const dirPath = `plugins/${dir}/data/locale`;
+		if (FSE.existsSync(dirPath) && FSE.lstatSync(dirPath).isDirectory()) {
+			emptyTranslationDir(dirPath);
+		}
+	}
+	for (const dir of FSE.readdirSync('UI/frontend-plugins')) {
+		const dirPath = `UI/frontend-plugins/${dir}/data/locale`;
 		if (FSE.existsSync(dirPath) && FSE.lstatSync(dirPath).isDirectory()) {
 			emptyTranslationDir(dirPath);
 		}
@@ -55,7 +62,7 @@ function removePreviousTranslations(): void {
 function prepareBuildProcessing(): string[] {
 	const detachedSubmodules: string[] = [];
 	for (const submodule of submodules) {
-		process.chdir(PATH.join('plugins', submodule));
+		process.chdir(`plugins/${submodule}`);
 		if (exec('git diff master HEAD').length !== 0) {
 			detachedSubmodules.push(submodule);
 		}
@@ -378,7 +385,7 @@ export async function processBuild(
  * @param languageFiles Locales mapped to their desktop file translations.
  */
 export async function desktopFile(languageFiles: Map<string, Map<string, string>>): Promise<void> {
-	const filePath = PATH.join('UI', 'xdg-data', 'com.obsproject.Studio.desktop');
+	const filePath = 'UI/xdg-data/com.obsproject.Studio.desktop';
 	const desktopFile = normalize(await FSE.readFile(filePath, 'utf-8'));
 	let result = '';
 	for (const line of desktopFile.split('\n')) {
@@ -392,7 +399,7 @@ export async function desktopFile(languageFiles: Map<string, Map<string, string>
 	result += '\n';
 	for (const language of languageFiles.entries()) {
 		for (const translation of language[1].entries()) {
-			result += `${translation[0]}[${language[0].replace('-', '_')}]=${translation[1]}\n`;
+			result += `${translation[0]}[${language[0]}]=${translation[1]}\n`;
 		}
 	}
 	await FSE.writeFile(filePath, result);
@@ -410,7 +417,7 @@ export async function localeFile(languageList: Map<string, string>, languageCode
 		progressMap.set(language.languageId, language.translationProgress);
 	}
 	const languagesInList = [];
-	const languagueListPath = PATH.join('UI', 'data', 'locale.ini');
+	const languagueListPath = 'UI/data/locale.ini';
 	for (const line of normalize(FSE.readFileSync(languagueListPath, 'utf-8')).split('\n')) {
 		if (line.startsWith('[') && line !== `[${STRINGS.language.locale}]`) {
 			languagesInList.push(line.substring(1, line.length - 1));
@@ -452,7 +459,7 @@ function pushChanges(detachedSubmodules: string[]): void {
 	exec(`git config --global user.name '${STRINGS.git.committer.name}'`);
 	exec(`git config --global user.email '${STRINGS.git.committer.email}'`);
 	for (const submodule of submodules) {
-		process.chdir(PATH.join('plugins', submodule));
+		process.chdir(`plugins/${submodule}`);
 		if (exec('git status --porcelain').length === 0) {
 			process.chdir('../..');
 			continue;
