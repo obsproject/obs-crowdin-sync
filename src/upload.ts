@@ -7,7 +7,7 @@ import STRINGS from './strings';
 import { exec, normalize } from './utils';
 import { projectId, CROWDIN_PAT, CROWDIN_ORG, JEST_RUN } from './constants';
 
-if (CROWDIN_PAT && JEST_RUN) {
+if (!CROWDIN_PAT && !JEST_RUN) {
 	ACTION.error('Environment variable CROWDIN_PAT not provided, skipping action.');
 	process.exit(0);
 }

@@ -8,11 +8,12 @@ export const sourceEqualityCheck = ['UI', 'plugins'];
 export const gitAddAllowList: Record<string, string | string[]> = {
 	all: [
 		'AUTHORS',
-		'UI/data/locale/*-*.ini',
 		'plugins/*/data/locale/*-*.ini',
 		'plugins/mac-virtualcam/src/obs-plugin/data/locale/*-*.ini',
 		'UI/data/locale.ini',
-		'UI/xdg-data/com.obsproject.Studio.desktop'
+		'UI/data/locale/*-*.ini',
+		'UI/xdg-data/com.obsproject.Studio.desktop',
+		'UI/frontend-plugins/*/data/locale/*-*.ini'
 	],
 	'enc-amf': 'resources/locale/*-*.ini',
 	'obs-browser': 'data/locale/*-*.ini',
