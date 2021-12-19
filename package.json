@@ -4,7 +4,7 @@
 	"bugs": "https://github.com/obsproject/crowdin-synchronization/issues",
 	"license": "GPL-3.0-or-later",
 	"scripts": {
-		"build": "removeNPMAbsolutePaths node_modules && ncc build src/download.ts && move dist\\index.js dist\\download.mjs && ncc build src/upload.ts && move dist\\index.js dist\\upload.mjs && del dist\\package.json",
+		"build": "node scripts/build.js",
 		"lint": "eslint --fix src/**",
 		"check-format": "eslint --max-warnings 0 src/**",
 		"test": "jest"
