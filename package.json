@@ -1,48 +1,41 @@
 {
-	"version": "0.1.2",
 	"private": true,
-	"bugs": "https://github.com/obsproject/crowdin-synchronization/issues",
-	"license": "GPL-3.0-or-later",
 	"scripts": {
 		"build": "node scripts/build.js",
 		"lint": "eslint --fix src/**",
 		"check-format": "eslint --max-warnings 0 src/**",
 		"test": "jest"
 	},
-	"repository": {
-		"type": "git",
-		"url": "git+https://github.com/obsproject/crowdin-synchronization.git"
-	},
 	"type": "module",
 	"dependencies": {
 		"@actions/core": "^1.6.0",
-		"@crowdin/crowdin-api-client": "^1.12.3",
+		"@crowdin/crowdin-api-client": "^1.14.1",
 		"adm-zip": "^0.5.9",
-		"axios": "^0.24.0",
-		"fs-extra": "^10.0.0",
+		"axios": "^0.26.0",
+		"fs-extra": "^10.0.1",
 		"p-limit": "3.1.0"
 	},
 	"devDependencies": {
 		"@types/adm-zip": "^0.4.34",
 		"@types/fs-extra": "^9.0.13",
-		"@types/jest": "^27.0.2",
-		"@types/node": "^16.11.6",
-		"@typescript-eslint/eslint-plugin": "^5.2.0",
-		"@typescript-eslint/parser": "^5.2.0",
-		"@vercel/ncc": "^0.31.1",
-		"eslint": "^8.1.0",
-		"eslint-config-prettier": "^8.3.0",
-		"eslint-plugin-import": "^2.25.2",
-		"eslint-plugin-jsdoc": "^37.0.3",
+		"@types/jest": "^27.4.0",
+		"@types/node": "^16.11.7",
+		"@typescript-eslint/eslint-plugin": "^5.11.0",
+		"@typescript-eslint/parser": "^5.11.0",
+		"@vercel/ncc": "^0.33.3",
+		"eslint": "^8.10.0",
+		"eslint-config-prettier": "^8.5.0",
+		"eslint-plugin-import": "^2.25.4",
+		"eslint-plugin-jsdoc": "^37.9.1",
 		"eslint-plugin-node": "^11.1.0",
 		"eslint-plugin-only-warn": "^1.0.3",
 		"eslint-plugin-prettier": "^4.0.0",
-		"eslint-plugin-promise": "^5.1.1",
-		"jest": "^27.3.1",
-		"nock": "^13.1.4",
-		"prettier": "^2.4.1",
-		"removeNPMAbsolutePaths": "^2.0.0",
-		"ts-jest": "^27.0.7",
-		"typescript": "^4.4.4"
+		"eslint-plugin-promise": "^6.0.0",
+		"jest": "^27.5.1",
+		"nock": "^13.2.4",
+		"prettier": "^2.5.1",
+		"removeNPMAbsolutePaths": "^3.0.0",
+		"ts-jest": "^27.1.3",
+		"typescript": "^4.6.2"
 	}
 }
