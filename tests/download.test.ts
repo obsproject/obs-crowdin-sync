@@ -2,8 +2,9 @@ import NOCK from 'nock';
 import ZIP from 'adm-zip';
 import PATH from 'path';
 import FSE from 'fs-extra';
-import { projectId } from '../src/constants';
-import { fileStructureToObject } from '../src/utils';
+
+import { PROJECT_ID } from '../src/constants';
+import { convertFileStructureToObject } from '../src/utils';
 import {
 	getLanguages,
 	getFilePaths,
@@ -11,22 +12,23 @@ import {
 	buildProject,
 	getSourceFiles,
 	processBuild,
-	localeFile,
-	desktopFile
+	createLocaleFile,
+	createDesktopFile,
+	removePreviousTranslations
 } from '../src/download';
-import { URLSearchParams } from 'url';
 
-let scope: NOCK.Scope;
-const rootDir = 'tests/running/worktree';
+let scopeDownloads: NOCK.Scope;
+let scopeMain: NOCK.Scope;
 
 beforeAll(async () => {
-	if (await FSE.pathExists(`${rootDir}/..`)) {
-		await FSE.rm(`${rootDir}/..`, { recursive: true });
+	const rootDir = 'tests/worktree/download';
+	if (await FSE.pathExists(rootDir)) {
+		await FSE.rm(rootDir, { recursive: true });
 	}
-	await FSE.mkdir(rootDir, { recursive: true });
-	process.chdir(rootDir);
+	await FSE.mkdir(`${rootDir}/translations`, { recursive: true });
+	process.chdir(`${rootDir}/translations`);
 	const buildArchive = new ZIP();
-	let zipFiles: Record<string, string> = {
+	let crowdinBuildFiles: Record<string, string> = {
 		'UI/data/locale/de-DE.ini': '\nLanguage="Deutsch"\nOK="Okay"\n\nApply="Übernehmen"\nCancel="Abbre\nchen"\n\n',
 		'UI/data/locale/fr-FR.ini': 'abc="123"',
 		'UI/data/locale/en-GB.ini': 'Language="English (UK)"\nOK="OK"',
@@ -39,79 +41,94 @@ beforeAll(async () => {
 		'desktop-entry/en_GB.ini': 'GenericName="enName"\nComment="enComment"',
 		'desktop-entry/de_DE.ini': 'GenericName="deName"\nComment="deComment"\n\n'
 	};
-	for (const file in zipFiles) {
-		buildArchive.addFile(file, Buffer.from(zipFiles[file], 'utf-8'));
-		FSE.mkdir(PATH.parse(file).dir, { recursive: true });
+	for (const file in crowdinBuildFiles) {
+		buildArchive.addFile(file, Buffer.from(crowdinBuildFiles[file], 'utf-8'));
+		let createDir = true;
+		for (const skippedFile of ['Website/', 'desktop-entry/', 'plugins/missing/']) {
+			if (file.startsWith(skippedFile)) {
+				createDir = false;
+			}
+		}
+		if (createDir) {
+			await FSE.mkdir(PATH.parse(file).dir, { recursive: true });
+		}
 	}
 	buildArchive.writeZip('../Build.zip');
 
-	NOCK('https://downloads.net')
-		.get(/\/reports\/[1-4]{4}/)
-		.twice()
-		.reply(200, uri => {
-			switch (uri.match(/[1-4]{4}/)![0]) {
-				case '1234':
-					return {
-						language: {
-							name: 'German'
-						},
-						data: [
-							{
-								user: {
-									id: 5,
-									fullName: 'Blocked User'
-								},
-								translated: 124,
-								approved: 123
-							},
-							{
-								user: {
-									id: 1,
-									fullName: 'First User'
-								},
-								translated: 123,
-								approved: 12
-							},
-							{
-								user: {
-									id: 2,
-									fullName: 'Last User'
-								},
-								translated: 5,
-								approved: 0
-							}
-						]
-					};
-				case '4321':
-					return {
-						language: {
-							name: 'French'
-						},
-						data: [
-							{
-								user: {
-									id: 1,
-									fullName: 'REMOVED_USER'
-								},
-								translated: 5,
-								approved: 10
-							},
-							{
-								user: {
-									id: 2,
-									fullName: 'French Translator'
-								},
-								translated: 123,
-								approved: 12
-							}
-						]
-					};
-			}
+	const previousFiles: Record<string, string> = {
+		'UI/data/locale/an-ES.ini': 'previous',
+		'UI/data/locale/en-US.ini': 'source file',
+		'UI/frontend-plugins/frontend-tools/data/locale/an-ES.ini': 'previous',
+		'plugins/decklink/data/locale/an-ES.ini': 'previous'
+	};
+	for (const file in previousFiles) {
+		await FSE.writeFile(file, previousFiles[file]);
+	}
+
+	await removePreviousTranslations();
+
+	const MAX_API_PAGE_SIZE = 500;
+	scopeDownloads = NOCK('https://downloads.net')
+		.get('/reports/1234')
+		.reply(200, {
+			language: {
+				name: 'German'
+			},
+			data: [
+				{
+					user: {
+						id: 5,
+						fullName: 'Blocked User'
+					},
+					translated: 124,
+					approved: 123
+				},
+				{
+					user: {
+						id: 1,
+						fullName: 'First User'
+					},
+					translated: 123,
+					approved: 12
+				},
+				{
+					user: {
+						id: 2,
+						fullName: 'Last User'
+					},
+					translated: 5,
+					approved: 0
+				}
+			]
+		})
+		.get('/reports/4321')
+		.reply(200, {
+			language: {
+				name: 'French'
+			},
+			data: [
+				{
+					user: {
+						id: 1,
+						fullName: 'REMOVED_USER'
+					},
+					translated: 5,
+					approved: 10
+				},
+				{
+					user: {
+						id: 2,
+						fullName: 'French Translator'
+					},
+					translated: 123,
+					approved: 12
+				}
+			]
 		})
 		.get('/builds/1')
 		.replyWithFile(200, '../Build.zip');
 
-	scope = NOCK(`https://api.crowdin.com/api/v2/projects/${projectId}/`)
+	scopeMain = NOCK(`https://api.crowdin.com/api/v2/projects/${PROJECT_ID}`)
 		.get('')
 		.reply(200, {
 			data: {
@@ -129,7 +146,7 @@ beforeAll(async () => {
 			}
 		})
 		.get('/files')
-		.query({ limit: 500 })
+		.query({ limit: MAX_API_PAGE_SIZE })
 		.reply(200, {
 			data: [
 				{
@@ -155,7 +172,7 @@ beforeAll(async () => {
 		.get('/members')
 		.query({
 			role: 'blocked',
-			limit: '500'
+			limit: MAX_API_PAGE_SIZE
 		})
 		.reply(200, {
 			data: [
@@ -166,37 +183,57 @@ beforeAll(async () => {
 				}
 			]
 		})
-		.post('/reports')
-		.twice()
-		.reply(200, (uri, body: any) => {
-			switch (body.schema.languageId) {
-				case 'de':
-					return {
-						data: {
-							status: 'created',
-							identifier: '1234'
-						}
-					};
-				case 'fr':
-					return {
-						data: {
-							status: 'created',
-							identifier: '4321'
-						}
-					};
+		.post('/reports', {
+			name: 'top-members',
+			schema: {
+				unit: 'words',
+				format: 'json',
+				dateFrom: '2014-01-01T00:00:00+00:00',
+				dateTo: '2030-01-01T00:00:00+00:00',
+				languageId: 'de'
 			}
 		})
-		.get(/\/reports\/[1-4]{4}\/download/)
-		.twice()
-		.reply(200, uri => {
-			return {
-				data: {
-					url: `https://downloads.net/reports/${uri.match(/[1-4]{4}/)}`
-				}
-			};
+		.reply(200, {
+			data: {
+				status: 'created',
+				identifier: '1234'
+			}
 		})
-		.get(/\/reports\/[1-4]{4}/)
-		.twice()
+		.post('/reports', {
+			name: 'top-members',
+			schema: {
+				unit: 'words',
+				format: 'json',
+				dateFrom: '2014-01-01T00:00:00+00:00',
+				dateTo: '2030-01-01T00:00:00+00:00',
+				languageId: 'fr'
+			}
+		})
+		.reply(200, {
+			data: {
+				status: 'created',
+				identifier: '4321'
+			}
+		})
+		.get('/reports/1234/download')
+		.reply(200, {
+			data: {
+				url: `https://downloads.net/reports/1234`
+			}
+		})
+		.get('/reports/4321/download')
+		.reply(200, {
+			data: {
+				url: `https://downloads.net/reports/4321`
+			}
+		})
+		.get('/reports/1234')
+		.reply(200, {
+			data: {
+				status: 'finished'
+			}
+		})
+		.get('/reports/4321')
 		.reply(200, {
 			data: {
 				status: 'finished'
@@ -216,60 +253,47 @@ beforeAll(async () => {
 			}
 		})
 		.get('/strings')
-		.query(true)
-		.thrice()
-		.reply(200, uri => {
-			switch (Number(new URLSearchParams(uri).get('offset'))) {
-				case 0:
-					return {
-						data: [
-							{
-								data: {
-									fileId: 29,
-									identifier: 'Language',
-									text: 'English'
-								}
-							},
-							{
-								data: {
-									fileId: 20,
-									identifier: '# commonly shared locale',
-									text: ''
-								}
-							}
-						]
-					};
-				case 500:
-					return {
-						data: [
-							{
-								data: {
-									fileId: 29,
-									identifier: 'OK',
-									text: 'OK'
-								}
-							},
-							{
-								data: {
-									fileId: 120,
-									identifier: 'ColorFilter',
-									text: 'Color Correction'
-								}
-							},
-							{
-								data: {
-									fileId: 718,
-									identifier: 'GenericName',
-									text: 'Streaming/Recording Software'
-								}
-							}
-						]
-					};
-				case 1000:
-					return {
-						data: []
-					};
-			}
+		.query({ limit: MAX_API_PAGE_SIZE })
+		.reply(200, () => {
+			return {
+				data: [
+					{
+						data: {
+							fileId: 29,
+							identifier: 'Language',
+							text: 'English'
+						}
+					},
+					{
+						data: {
+							fileId: 20,
+							identifier: '# commonly shared locale',
+							text: ''
+						}
+					},
+					{
+						data: {
+							fileId: 29,
+							identifier: 'OK',
+							text: 'OK'
+						}
+					},
+					{
+						data: {
+							fileId: 120,
+							identifier: 'ColorFilter',
+							text: 'Color Correction'
+						}
+					},
+					{
+						data: {
+							fileId: 718,
+							identifier: 'GenericName',
+							text: 'Streaming/Recording Software'
+						}
+					}
+				]
+			};
 		})
 		.get('/translations/builds/1/download')
 		.reply(200, {
@@ -278,7 +302,7 @@ beforeAll(async () => {
 			}
 		})
 		.get('/languages/progress')
-		.query({ limit: 500 })
+		.query({ limit: MAX_API_PAGE_SIZE })
 		.reply(200, {
 			data: [
 				{
@@ -395,113 +419,53 @@ it(processBuild.name, async () => {
 			['en-GB', 'English (UK)']
 		])
 	});
-	expect(await fileStructureToObject('.')).toEqual({
-		name: 'worktree',
+	expect(await convertFileStructureToObject('.')).toEqual({
+		name: PATH.basename(PATH.resolve('.')),
 		content: [
 			{
 				name: 'UI',
 				content: [
 					{
-						name: 'data',
+						name: 'data/locale',
 						content: [
 							{
-								name: 'locale',
-								content: [
-									{
-										name: 'de-DE.ini',
-										content: 'Language="Deutsch"\nOK="Okay"\nApply="Übernehmen"\nCancel="Abbre\\nchen"\n'
-									},
-									{
-										name: 'en-GB.ini',
-										content: 'Language="English (UK)"\n'
-									},
-									{ name: 'fr-FR.ini', content: 'abc="123"\n' }
-								]
+								name: 'de-DE.ini',
+								content: 'Language="Deutsch"\nOK="Okay"\nApply="Übernehmen"\nCancel="Abbre\\nchen"\n'
+							},
+							{
+								name: 'en-GB.ini',
+								content: 'Language="English (UK)"\n'
+							},
+							{
+								name: 'en-US.ini',
+								content: 'source file'
+							},
+							{
+								name: 'fr-FR.ini',
+								content: 'abc="123"\n'
 							}
 						]
 					},
 					{
-						name: 'frontend-plugins',
-						content: [
-							{
-								name: 'frontend-tools',
-								content: [
-									{
-										name: 'data',
-										content: [
-											{
-												name: 'locale',
-												content: [{ name: 'de-DE.ini', content: 'abc="123"\n' }]
-											}
-										]
-									}
-								]
-							}
-						]
+						name: 'frontend-plugins/frontend-tools/data/locale/de-DE.ini',
+						content: 'abc="123"\n'
 					}
 				]
 			},
-			{ name: 'Website', content: [] },
-			{ name: 'desktop-entry', content: [] },
 			{
 				name: 'plugins',
 				content: [
 					{
-						name: 'decklink',
-						content: [
-							{
-								name: 'data',
-								content: [
-									{
-										name: 'locale',
-										content: [{ name: 'de-DE.ini', content: 'abc="123"\n' }]
-									}
-								]
-							}
-						]
+						name: 'decklink/data/locale/de-DE.ini',
+						content: 'abc="123"\n'
 					},
 					{
-						name: 'enc-amf',
-						content: [
-							{
-								name: 'resources',
-								content: [
-									{
-										name: 'locale',
-										content: [{ name: 'de-DE.ini', content: 'abc="123"\n' }]
-									}
-								]
-							}
-						]
+						name: 'enc-amf/resources/locale/de-DE.ini',
+						content: 'abc="123"\n'
 					},
 					{
-						name: 'mac-virtualcam',
-						content: [
-							{
-								name: 'src',
-								content: [
-									{
-										name: 'obs-plugin',
-										content: [
-											{
-												name: 'data',
-												content: [
-													{
-														name: 'locale',
-														content: [
-															{
-																name: 'de-DE.ini',
-																content: 'abc="123"\n'
-															}
-														]
-													}
-												]
-											}
-										]
-									}
-								]
-							}
-						]
+						name: 'mac-virtualcam/src/obs-plugin/data/locale/de-DE.ini',
+						content: 'abc="123"\n'
 					}
 				]
 			}
@@ -509,10 +473,10 @@ it(processBuild.name, async () => {
 	});
 });
 
-it(localeFile.name, async () => {
+it(createLocaleFile.name, async () => {
 	const languageListPath = 'UI/data/locale.ini';
 	await FSE.writeFile(languageListPath, '[ab-cd]\nName=LanguageName\n[de-DE]\nName=Deutsch\n[fr-FR]\nName=Français\n\n');
-	await localeFile(
+	await createLocaleFile(
 		new Map<string, string>([
 			['de-DE', 'Deutsch'],
 			['fr-FR', 'Français'],
@@ -529,11 +493,11 @@ it(localeFile.name, async () => {
 	expect(await FSE.readFile(languageListPath, 'utf-8')).toBe('[da-DK]\nName=Dansk\n\n[en-US]\nName=English\n\n[fr-FR]\nName=Français\n');
 });
 
-it(desktopFile.name, async () => {
+it(createDesktopFile.name, async () => {
 	const filePath = 'UI/xdg-data/com.obsproject.Studio.desktop';
 	await FSE.mkdir(PATH.parse(filePath).dir);
 	await FSE.writeFile(filePath, '[Desktop Entry]\nVersion=1.0\nName=OBS Studio\n\nGenericName[an_ES]=abc\nComment[an_ES]=abc\n');
-	await desktopFile(
+	await createDesktopFile(
 		new Map<string, Map<string, string>>([
 			[
 				'de_DE',
@@ -557,5 +521,6 @@ it(desktopFile.name, async () => {
 });
 
 afterAll(() => {
-	scope.isDone();
+	scopeDownloads.done();
+	scopeMain.done();
 });

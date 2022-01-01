@@ -4,14 +4,14 @@ import PLIMIT from 'p-limit';
 import PATH from 'path';
 import FSE from 'fs-extra';
 import CROWDIN, { ReportsModel, UsersModel } from '@crowdin/crowdin-api-client';
-import * as ACTION from '@actions/core';
+import * as ACTIONS from '@actions/core';
 
 import STRINGS from './strings';
 import { wait, exec, normalize } from './utils';
-import { projectId, submodules, sourceEqualityCheck, gitAddAllowList, CROWDIN_PAT, CROWDIN_ORG, JEST_RUN } from './constants';
+import { PROJECT_ID, SUBMODULES, SOURCE_EQUALITY_CHECK_DIRS, GIT_ALLOW_LIST, CROWDIN_PAT, CROWDIN_ORG, JEST_RUN } from './constants';
 
 if (!CROWDIN_PAT && !JEST_RUN) {
-	ACTION.error('Environment variable CROWDIN_PAT not provided, skipping action');
+	ACTIONS.error('Environment variable CROWDIN_PAT not provided, skipping action');
 	process.exit(0);
 }
 
@@ -25,10 +25,10 @@ const { reportsApi, translationsApi, usersApi, projectsGroupsApi, sourceFilesApi
  *
  * @param dirPath Directory to clear.
  */
-function emptyTranslationDir(dirPath: string): void {
-	for (const file of FSE.readdirSync(dirPath)) {
-		if (file !== `${STRINGS.language.locale}.ini`) {
-			FSE.removeSync(`${dirPath}/${file}`);
+async function emptyTranslationDir(dirPath: string): Promise<void> {
+	for (const file of await FSE.readdir(dirPath)) {
+		if (file !== `${STRINGS.englishLanguage.locale}.ini`) {
+			await FSE.remove(`${dirPath}/${file}`);
 		}
 	}
 }
@@ -36,20 +36,18 @@ function emptyTranslationDir(dirPath: string): void {
 /**
  * Remove all translations to prevent keeping dropped languages.
  */
-function removePreviousTranslations(): void {
-	emptyTranslationDir('UI/data/locale');
-	emptyTranslationDir('plugins/enc-amf/resources/locale');
-	emptyTranslationDir('plugins/mac-virtualcam/src/obs-plugin/data/locale');
-	for (const dir of FSE.readdirSync('plugins')) {
-		const dirPath = `plugins/${dir}/data/locale`;
-		if (FSE.existsSync(dirPath) && FSE.lstatSync(dirPath).isDirectory()) {
-			emptyTranslationDir(dirPath);
-		}
-	}
-	for (const dir of FSE.readdirSync('UI/frontend-plugins')) {
-		const dirPath = `UI/frontend-plugins/${dir}/data/locale`;
-		if (FSE.existsSync(dirPath) && FSE.lstatSync(dirPath).isDirectory()) {
-			emptyTranslationDir(dirPath);
+export async function removePreviousTranslations(): Promise<void> {
+	await Promise.all([
+		emptyTranslationDir('UI/data/locale'),
+		emptyTranslationDir('plugins/enc-amf/resources/locale'),
+		emptyTranslationDir('plugins/mac-virtualcam/src/obs-plugin/data/locale')
+	]);
+	for (const pluginRootDir of ['plugins', 'UI/frontend-plugins']) {
+		for (const pluginDir of await FSE.readdir(pluginRootDir)) {
+			const pluginLocalePath = `${pluginRootDir}/${pluginDir}/data/locale`;
+			if ((await FSE.pathExists(pluginLocalePath)) && (await FSE.lstat(pluginLocalePath)).isDirectory()) {
+				await emptyTranslationDir(pluginLocalePath);
+			}
 		}
 	}
 }
@@ -61,7 +59,7 @@ function removePreviousTranslations(): void {
  */
 function prepareBuildProcessing(): string[] {
 	const detachedSubmodules: string[] = [];
-	for (const submodule of submodules) {
+	for (const submodule of SUBMODULES) {
 		process.chdir(`plugins/${submodule}`);
 		if (exec('git diff master HEAD').length !== 0) {
 			detachedSubmodules.push(submodule);
@@ -79,11 +77,7 @@ function prepareBuildProcessing(): string[] {
  */
 export async function getFilePaths(): Promise<Map<number, string>> {
 	const filePaths = new Map<number, string>();
-	for (const { data: file } of (
-		await sourceFilesApi.listProjectFiles(projectId, {
-			limit: 500
-		})
-	).data) {
+	for (const { data: file } of (await sourceFilesApi.withFetchAll().listProjectFiles(PROJECT_ID)).data) {
 		const fileName = file.name;
 		const exportPattern = file.exportOptions.exportPattern.replace('%file_name%', fileName.substring(0, fileName.indexOf('.')));
 		filePaths.set(file.id, exportPattern.substring(1, exportPattern.lastIndexOf('/')));
@@ -99,41 +93,28 @@ export async function getFilePaths(): Promise<Map<number, string>> {
  */
 export async function getSourceFiles(filePaths: Map<number, string>): Promise<Map<number, Map<string, string>>> {
 	const sourceFiles = new Map<number, Map<string, string>>();
-	let offset = 0;
 	let currentFileId;
 	let currentFileStrings: Map<string, string> | undefined;
-	while (true) {
-		const projectStrings = (
-			await sourceStringsApi.listProjectStrings(projectId, {
-				limit: 500,
-				offset: offset
-			})
-		).data;
-		if (projectStrings.length === 0) {
-			break;
+	for (const { data: sourceString } of (await sourceStringsApi.withFetchAll().listProjectStrings(PROJECT_ID)).data) {
+		const fileId = sourceString.fileId;
+		if (
+			filePaths.has(fileId) &&
+			!SOURCE_EQUALITY_CHECK_DIRS.includes(filePaths.get(fileId)!.substring(0, filePaths.get(fileId)!.indexOf('/')))
+		) {
+			continue;
 		}
-		for (const { data: sourceString } of projectStrings) {
-			const fileId = sourceString.fileId;
-			if (
-				filePaths.has(fileId) &&
-				!sourceEqualityCheck.includes(filePaths.get(fileId)!.substring(0, filePaths.get(fileId)!.indexOf('/')))
-			) {
-				continue;
+		if (fileId !== currentFileId) {
+			if (typeof currentFileId !== 'undefined') {
+				sourceFiles.set(currentFileId, currentFileStrings!);
 			}
-			if (fileId !== currentFileId) {
-				if (typeof currentFileId !== 'undefined') {
-					sourceFiles.set(currentFileId, currentFileStrings!);
-				}
-				currentFileId = fileId;
-				if (sourceFiles.has(currentFileId)) {
-					currentFileStrings = sourceFiles.get(currentFileId);
-				} else {
-					currentFileStrings = new Map<string, string>();
-				}
+			currentFileId = fileId;
+			if (sourceFiles.has(currentFileId)) {
+				currentFileStrings = sourceFiles.get(currentFileId);
+			} else {
+				currentFileStrings = new Map<string, string>();
 			}
-			currentFileStrings!.set(sourceString.identifier, sourceString.text as string);
 		}
-		offset += 500;
+		currentFileStrings!.set(sourceString.identifier, sourceString.text as string);
 	}
 	return sourceFiles;
 }
@@ -144,8 +125,8 @@ export async function getSourceFiles(filePaths: Map<number, string>): Promise<Ma
  * @param gitContributors Output of getGitContributors()
  * @param translators Output of getTranslators()
  */
-function generateAuthors(gitContributors: string, translators: string): void {
-	FSE.writeFileSync(STRINGS.authors.fileName, `${STRINGS.authors.header}${gitContributors}${translators}`);
+async function generateAuthors(gitContributors: string, translators: string): Promise<void> {
+	await FSE.writeFile(STRINGS.authors.fileName, `${STRINGS.authors.header}${gitContributors}${translators}`);
 }
 
 /**
@@ -175,7 +156,7 @@ const requestLimit = PLIMIT(10);
 export async function getTranslators(targetLanguageIds: string[]): Promise<string> {
 	// blocked users
 	const blockedUsers: number[] = [];
-	for (const { data: blockedUser } of (await usersApi.listProjectMembers(projectId, undefined, UsersModel.Role.BLOCKED, undefined, 500))
+	for (const { data: blockedUser } of (await usersApi.withFetchAll().listProjectMembers(PROJECT_ID, undefined, UsersModel.Role.BLOCKED))
 		.data) {
 		blockedUsers.push(blockedUser.id);
 	}
@@ -186,7 +167,7 @@ export async function getTranslators(targetLanguageIds: string[]): Promise<strin
 			requestLimit(() =>
 				(async () => {
 					const { status: reportStatus, identifier: reportId } = (
-						await reportsApi.generateReport(projectId, {
+						await reportsApi.generateReport(PROJECT_ID, {
 							name: 'top-members',
 							schema: {
 								unit: ReportsModel.Unit.WORDS,
@@ -200,9 +181,9 @@ export async function getTranslators(targetLanguageIds: string[]): Promise<strin
 					let finished = reportStatus === 'finished';
 					while (!finished) {
 						await wait(3000);
-						finished = (await reportsApi.checkReportStatus(projectId, reportId)).data.status === 'finished';
+						finished = (await reportsApi.checkReportStatus(PROJECT_ID, reportId)).data.status === 'finished';
 					}
-					return (await AXIOS.get((await reportsApi.downloadReport(projectId, reportId)).data.url)).data;
+					return (await AXIOS.get((await reportsApi.downloadReport(PROJECT_ID, reportId)).data.url)).data;
 				})()
 			)
 		);
@@ -251,20 +232,20 @@ export async function getTranslators(targetLanguageIds: string[]): Promise<strin
  */
 export async function buildProject(): Promise<number> {
 	if (process.env.CROWDIN_ORG) {
-		const { id, status } = (await translationsApi.listProjectBuilds(projectId, undefined, 1)).data[0].data;
+		const { id, status } = (await translationsApi.listProjectBuilds(PROJECT_ID, undefined, 1)).data[0].data;
 		if (status === 'finished') {
 			return id;
 		}
 	}
 	const { id, status } = (
-		await translationsApi.buildProject(projectId, {
+		await translationsApi.buildProject(PROJECT_ID, {
 			skipUntranslatedStrings: true
 		})
 	).data;
 	let finished = status === 'finished';
 	while (!finished) {
 		await wait(5000);
-		finished = (await translationsApi.checkBuildStatus(projectId, id)).data.status === 'finished';
+		finished = (await translationsApi.checkBuildStatus(PROJECT_ID, id)).data.status === 'finished';
 	}
 	return id;
 }
@@ -278,7 +259,7 @@ export async function getLanguages(): Promise<{
 	targetLanguageIds: string[];
 	languageCodeMap: Map<string, string>;
 }> {
-	const projectData = (await projectsGroupsApi.getProject(projectId)).data;
+	const projectData = (await projectsGroupsApi.getProject(PROJECT_ID)).data;
 	const languageCodeMap = new Map<string, string>(); // <locale, languageId>
 	for (const language of projectData.targetLanguages) {
 		languageCodeMap.set(language.locale, language.id);
@@ -313,7 +294,7 @@ export async function processBuild(
 	}
 	// Download build.
 	const zipFile = new ZIP(
-		(await AXIOS.get((await translationsApi.downloadTranslations(projectId, buildId)).data.url, { responseType: 'arraybuffer' })).data
+		(await AXIOS.get((await translationsApi.downloadTranslations(PROJECT_ID, buildId)).data.url, { responseType: 'arraybuffer' })).data
 	);
 	const desktopFileTranslations = new Map<string, Map<string, string>>(); // <locale, <stringKey, translation>>
 	const languageList = new Map<string, string>(); // <locale, localeLanguageName>
@@ -374,7 +355,7 @@ export async function processBuild(
 		await FSE.writeFile(entryFullPath, translationContent);
 	}
 	return {
-		desktopFileTranslations: new Map([...desktopFileTranslations].sort((a, b) => String(a[0]).localeCompare(b[0]))),
+		desktopFileTranslations: new Map([...desktopFileTranslations].sort((a, b) => a[0].localeCompare(b[0]))),
 		languageList
 	};
 }
@@ -384,7 +365,7 @@ export async function processBuild(
  *
  * @param languageFiles Locales mapped to their desktop file translations.
  */
-export async function desktopFile(languageFiles: Map<string, Map<string, string>>): Promise<void> {
+export async function createDesktopFile(languageFiles: Map<string, Map<string, string>>): Promise<void> {
 	const filePath = 'UI/xdg-data/com.obsproject.Studio.desktop';
 	const desktopFile = normalize(await FSE.readFile(filePath, 'utf-8'));
 	let result = '';
@@ -411,15 +392,15 @@ export async function desktopFile(languageFiles: Map<string, Map<string, string>
  * @param languageList Locales mapped to their locale language name.
  * @param languageCodeMap Locales mapped to their language id.
  */
-export async function localeFile(languageList: Map<string, string>, languageCodeMap: Map<string, string>): Promise<void> {
+export async function createLocaleFile(languageList: Map<string, string>, languageCodeMap: Map<string, string>): Promise<void> {
 	const progressMap = new Map<string, number>(); // <languageId, translationProgress>
-	for (const { data: language } of (await translationStatusApi.getProjectProgress(projectId, 500)).data) {
+	for (const { data: language } of (await translationStatusApi.withFetchAll().getProjectProgress(PROJECT_ID)).data) {
 		progressMap.set(language.languageId, language.translationProgress);
 	}
 	const languagesInList = [];
 	const languagueListPath = 'UI/data/locale.ini';
-	for (const line of normalize(FSE.readFileSync(languagueListPath, 'utf-8')).split('\n')) {
-		if (line.startsWith('[') && line !== `[${STRINGS.language.locale}]`) {
+	for (const line of normalize(await FSE.readFile(languagueListPath, 'utf-8')).split('\n')) {
+		if (line.startsWith('[') && line !== `[${STRINGS.englishLanguage.locale}]`) {
 			languagesInList.push(line.substring(1, line.length - 1));
 		}
 	}
@@ -432,14 +413,14 @@ export async function localeFile(languageList: Map<string, string>, languageCode
 			}
 		}
 	}
-	finalLanguages.push(STRINGS.language.locale);
-	languageList.set(STRINGS.language.locale, STRINGS.language.name);
+	finalLanguages.push(STRINGS.englishLanguage.locale);
+	languageList.set(STRINGS.englishLanguage.locale, STRINGS.englishLanguage.name);
 	let result = '';
 	for (const locale of finalLanguages.sort()) {
 		if (languageList.has(locale)) {
 			result += `[${locale}]\nName=${languageList.get(locale)}\n\n`;
 		} else {
-			ACTION.error(
+			ACTIONS.error(
 				`${locale} was supposed to be included but is missing the language name ('Language' string in 'Main Application' file).`
 			);
 		}
@@ -455,33 +436,32 @@ function pushChanges(detachedSubmodules: string[]): void {
 	if (process.env.CROWDIN_SYNC_SKIP_PUSH) {
 		return;
 	}
-	ACTION.info('Pushing translation and author changes.');
 	exec(`git config --global user.name '${STRINGS.git.committer.name}'`);
 	exec(`git config --global user.email '${STRINGS.git.committer.email}'`);
-	for (const submodule of submodules) {
+	for (const submodule of SUBMODULES) {
 		process.chdir(`plugins/${submodule}`);
 		if (exec('git status --porcelain').length === 0) {
 			process.chdir('../..');
 			continue;
 		}
-		exec(`git add '${gitAddAllowList[submodule]}'`);
+		exec(`git add '${GIT_ALLOW_LIST[submodule]}'`);
 		exec(`git commit -m '${STRINGS.git.commitTitle}'`);
 		exec('git push');
 		process.chdir('../..');
 	}
-	for (const path of gitAddAllowList.all) {
+	for (const path of GIT_ALLOW_LIST.all) {
 		exec(`git add '${path}'`);
 	}
-	for (const submodule of submodules) {
+	for (const submodule of SUBMODULES) {
 		exec(`git add plugins/${submodule}`);
 	}
 	for (const submodule of detachedSubmodules) {
-		ACTION.info(`${submodule} has commits not pushed to the main repository. Only pushing to submodule.`);
+		ACTIONS.info(`${submodule} has commits not pushed to the main repository. Only pushing to submodule.`);
 		exec(`git checkout HEAD -- plugins/${submodule}`);
 		exec(`git submodule update --init plugins/${submodule}`);
 	}
 	if (exec('git status --porcelain').length === 0) {
-		ACTION.info('No changes in main repository. Skipping push.');
+		ACTIONS.info('No changes in main repository. Skipping push.');
 		return;
 	}
 	exec(`git commit -m '${STRINGS.git.commitTitle}'`);
@@ -494,17 +474,17 @@ function pushChanges(detachedSubmodules: string[]): void {
 		return;
 	}
 	try {
-		removePreviousTranslations();
+		await removePreviousTranslations();
 		const results = [];
-		results[0] = await Promise.all([prepareBuildProcessing(), await getFilePaths(), await buildProject(), await getLanguages()]);
+		results[0] = await Promise.all([prepareBuildProcessing(), getFilePaths(), buildProject(), getLanguages()]);
 		results[1] = await Promise.all([
 			generateAuthors(getGitContributors(), await getTranslators(results[0][3].targetLanguageIds)),
-			await processBuild(results[0][2], await getSourceFiles(results[0][1]), results[0][1])
+			processBuild(results[0][2], await getSourceFiles(results[0][1]), results[0][1])
 		]);
-		await localeFile(results[1][1].languageList, results[0][3].languageCodeMap);
-		desktopFile(results[1][1].desktopFileTranslations);
+		createLocaleFile(results[1][1].languageList, results[0][3].languageCodeMap);
+		createDesktopFile(results[1][1].desktopFileTranslations);
 		pushChanges(results[0][0]);
 	} catch (e) {
-		ACTION.setFailed(e as Error);
+		ACTIONS.setFailed(e as Error);
 	}
 })();
