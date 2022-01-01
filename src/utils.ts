@@ -43,12 +43,12 @@ export function normalize(text: string): string {
 }
 
 /**
- * Converts a file or directoy with all sub-files into one object.
+ * Converts a directoy structure with all sub-files into one object.
  *
  * @param filePath The path to the file or directory.
  * @returns An object representing a directory structure.
  */
-export async function fileStructureToObject(filePath: string): Promise<{}> {
+export async function convertFileStructureToObject(filePath: string): Promise<{}> {
 	filePath = PATH.resolve(filePath);
 	if (!(await FSE.pathExists(filePath))) {
 		return {};
@@ -60,9 +60,20 @@ export async function fileStructureToObject(filePath: string): Promise<{}> {
 		};
 	} else {
 		const fileList = [];
-		for (const file of await FSE.readdir(filePath)) {
-			fileList.push(await fileStructureToObject(PATH.join(filePath, file)));
+		const dirFiles = await FSE.readdir(filePath);
+		for (const file of dirFiles) {
+			if (dirFiles.length === 1) {
+				const subfolderFileStructure = (await convertFileStructureToObject(`${filePath}/${file}`)) as any;
+				return {
+					name: `${PATH.basename(filePath)}/${subfolderFileStructure.name}`,
+					content: subfolderFileStructure.content
+				};
+			}
+			fileList.push(await convertFileStructureToObject(`${filePath}/${file}`));
 		}
-		return { name: PATH.basename(filePath), content: fileList };
+		return {
+			name: PATH.basename(filePath),
+			content: fileList
+		};
 	}
 }

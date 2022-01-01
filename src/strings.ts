@@ -12,7 +12,7 @@ const strings = {
 		translators: 'Translators',
 		fileName: 'AUTHORS'
 	},
-	language: {
+	englishLanguage: {
 		locale: 'en-US',
 		name: 'English'
 	}
