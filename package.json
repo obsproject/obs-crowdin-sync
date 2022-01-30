@@ -4,7 +4,7 @@
 		"build": "node scripts/build.js",
 		"lint": "eslint --fix src/**",
 		"check-format": "eslint --max-warnings 0 src/**",
-		"test": "jest"
+		"test": "jest --verbose"
 	},
 	"type": "module",
 	"dependencies": {
