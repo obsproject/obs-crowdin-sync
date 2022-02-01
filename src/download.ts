@@ -8,7 +8,7 @@ import * as ACTIONS from '@actions/core';
 
 import STRINGS from './strings';
 import { wait, exec, normalize } from './utils';
-import { PROJECT_ID, SUBMODULES, SOURCE_EQUALITY_CHECK_DIRS, GIT_ALLOW_LIST, CROWDIN_PAT, CROWDIN_ORG, JEST_RUN } from './constants';
+import { PROJECT_ID, SOURCE_EQUALITY_CHECK_DIRS, GIT_ALLOW_LIST, CROWDIN_PAT, CROWDIN_ORG, JEST_RUN } from './constants';
 
 if (!CROWDIN_PAT && !JEST_RUN) {
 	ACTIONS.error('Environment variable CROWDIN_PAT not provided, skipping action');
@@ -26,11 +26,31 @@ const { reportsApi, translationsApi, usersApi, projectsGroupsApi, sourceFilesApi
  * @param dirPath Directory to clear.
  */
 async function emptyTranslationDir(dirPath: string): Promise<void> {
+	if (!(await FSE.pathExists(dirPath))) {
+		return;
+	}
 	for (const file of await FSE.readdir(dirPath)) {
 		if (file !== `${STRINGS.englishLanguage.locale}.ini`) {
 			await FSE.remove(`${dirPath}/${file}`);
 		}
 	}
+}
+
+/**
+ * Retrieves submodules with translatable files.
+ *
+ * @returns A list of submodules with translataable files.
+ */
+function getSubmodules(): string[] {
+	const submodules = [];
+	for (const line of exec('git config --file .gitmodules --get-regexp path').trimEnd().split('\n')) {
+		for (const submodule of ['enc-amf', 'obs-browser', 'obs-vst']) {
+			if (submodule.includes(line.substring(line.indexOf(' plugins/') + 9, line.length))) {
+				submodules.push(submodule);
+			}
+		}
+	}
+	return submodules;
 }
 
 /**
@@ -55,11 +75,12 @@ export async function removePreviousTranslations(): Promise<void> {
 /**
  * Finds submodules uneven with the main repository and checkouts `master` branch.
  *
+ * @param submodules A list of submodules.
  * @returns List of detached submodules in the repository.
  */
-function prepareBuildProcessing(): string[] {
+function getDetachedSubmodules(submodules: string[]): string[] {
 	const detachedSubmodules: string[] = [];
-	for (const submodule of SUBMODULES) {
+	for (const submodule of submodules) {
 		process.chdir(`plugins/${submodule}`);
 		if (exec('git diff master HEAD').length !== 0) {
 			detachedSubmodules.push(submodule);
@@ -431,14 +452,15 @@ export async function createLocaleFile(languageList: Map<string, string>, langua
  * Pushes all changes to the submodules and the main repository.
  *
  * @param detachedSubmodules List of detached submodules in the repository.
+ * @param submodules A list of submodules.
  */
-function pushChanges(detachedSubmodules: string[]): void {
+function pushChanges(detachedSubmodules: string[], submodules: string[]): void {
 	if (process.env.CROWDIN_SYNC_SKIP_PUSH) {
 		return;
 	}
 	exec(`git config --global user.name '${STRINGS.git.committer.name}'`);
 	exec(`git config --global user.email '${STRINGS.git.committer.email}'`);
-	for (const submodule of SUBMODULES) {
+	for (const submodule of submodules) {
 		process.chdir(`plugins/${submodule}`);
 		if (exec('git status --porcelain').length === 0) {
 			process.chdir('../..');
@@ -452,7 +474,7 @@ function pushChanges(detachedSubmodules: string[]): void {
 	for (const path of GIT_ALLOW_LIST.all) {
 		exec(`git add '${path}'`);
 	}
-	for (const submodule of SUBMODULES) {
+	for (const submodule of submodules) {
 		exec(`git add plugins/${submodule}`);
 	}
 	for (const submodule of detachedSubmodules) {
@@ -475,15 +497,16 @@ function pushChanges(detachedSubmodules: string[]): void {
 	}
 	try {
 		await removePreviousTranslations();
+		const submodules = getSubmodules();
 		const results = [];
-		results[0] = await Promise.all([prepareBuildProcessing(), getFilePaths(), buildProject(), getLanguages()]);
+		results[0] = await Promise.all([getDetachedSubmodules(submodules), getFilePaths(), buildProject(), getLanguages()]);
 		results[1] = await Promise.all([
 			generateAuthors(getGitContributors(), await getTranslators(results[0][3].targetLanguageIds)),
 			processBuild(results[0][2], await getSourceFiles(results[0][1]), results[0][1])
 		]);
 		createLocaleFile(results[1][1].languageList, results[0][3].languageCodeMap);
 		createDesktopFile(results[1][1].desktopFileTranslations);
-		pushChanges(results[0][0]);
+		pushChanges(results[0][0], submodules);
 	} catch (e) {
 		ACTIONS.setFailed(e as Error);
 	}
