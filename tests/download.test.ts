@@ -2,6 +2,7 @@ import NOCK from 'nock';
 import ZIP from 'adm-zip';
 import PATH from 'path';
 import FSE from 'fs-extra';
+import * as ACTIONS from '@actions/core';
 
 import { PROJECT_ID } from '../src/constants';
 import { convertFileStructureToObject } from '../src/utils';
@@ -39,7 +40,9 @@ beforeAll(async () => {
 		'plugins/mac-virtualcam/src/obs-plugin/data/locale/de-DE.ini': 'abc="123"',
 		'plugins/decklink/data/locale/de-DE.ini': 'abc="123"',
 		'desktop-entry/en_GB.ini': 'GenericName="enName"\nComment="enComment"',
-		'desktop-entry/de_DE.ini': 'GenericName="deName"\nComment="deComment"\n\n'
+		'desktop-entry/de_DE.ini': 'GenericName="deName"\nComment="deComment"\n\n',
+		'plugins/missing/data/locale/de-DE.ini': 'Content',
+		'plugins/missing/data/locale/fr-FR.ini': 'Content'
 	};
 	for (const file in crowdinBuildFiles) {
 		buildArchive.addFile(file, Buffer.from(crowdinBuildFiles[file], 'utf-8'));
@@ -383,6 +386,7 @@ it(getSourceFiles.name, async () => {
 });
 
 it(processBuild.name, async () => {
+	const noticeMock = jest.spyOn(ACTIONS, 'notice').mockImplementation(() => {});
 	expect(
 		await processBuild(
 			1,
@@ -471,6 +475,7 @@ it(processBuild.name, async () => {
 			}
 		]
 	});
+	expect(noticeMock).toBeCalledWith("plugins/missing/data/locale doesn't exist in the codebase. Remove this file on Crowdin.");
 });
 
 it(createLocaleFile.name, async () => {

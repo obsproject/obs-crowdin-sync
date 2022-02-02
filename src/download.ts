@@ -319,6 +319,7 @@ export async function processBuild(
 	);
 	const desktopFileTranslations = new Map<string, Map<string, string>>(); // <locale, <stringKey, translation>>
 	const languageList = new Map<string, string>(); // <locale, localeLanguageName>
+	const missingDirs: string[] = [];
 	for (const zipEntry of zipFile.getEntries()) {
 		const entryFullPath = zipEntry.entryName;
 		const { dir: entryDir, name: entryName } = PATH.parse(entryFullPath);
@@ -372,6 +373,14 @@ export async function processBuild(
 			}
 		} else {
 			translationContent = `${fileContent}\n`;
+		}
+		if (!(await FSE.pathExists(entryDir))) {
+			if (missingDirs.includes(entryDir)) {
+				continue;
+			}
+			ACTIONS.notice(`${entryDir} doesn't exist in the codebase. Remove this file on Crowdin.`);
+			missingDirs.push(entryDir);
+			continue;
 		}
 		await FSE.writeFile(entryFullPath, translationContent);
 	}
