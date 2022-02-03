@@ -8,7 +8,7 @@ import * as ACTIONS from '@actions/core';
 
 import STRINGS from './strings';
 import { wait, exec, normalize } from './utils';
-import { PROJECT_ID, SOURCE_EQUALITY_CHECK_DIRS, GIT_ALLOW_LIST, CROWDIN_PAT, CROWDIN_ORG, JEST_RUN } from './constants';
+import { PROJECT_ID, SOURCE_EQUALITY_CHECK_DIRS, GIT_ALLOW_LIST, CROWDIN_PAT, JEST_RUN } from './constants';
 
 if (!CROWDIN_PAT && !JEST_RUN) {
 	ACTIONS.error('Environment variable CROWDIN_PAT not provided, skipping action');
@@ -16,8 +16,7 @@ if (!CROWDIN_PAT && !JEST_RUN) {
 }
 
 const { reportsApi, translationsApi, usersApi, projectsGroupsApi, sourceFilesApi, sourceStringsApi, translationStatusApi } = new CROWDIN({
-	token: CROWDIN_PAT || '',
-	organization: CROWDIN_ORG
+	token: CROWDIN_PAT || ''
 });
 
 /**
