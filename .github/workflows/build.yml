@@ -19,5 +19,5 @@ jobs:
           git config --global user.name "Build Bot"
           git add download/ -f
           git add upload/ -f
-          git commit -m "Build ${{ github.event.head_commit.message }}"
+          git commit -m "Build ${{ github.event.head_commit.message }}" || echo "Skipping commit"
           git push
