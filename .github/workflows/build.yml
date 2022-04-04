@@ -1,8 +1,5 @@
 name: Build
-on:
-  push:
-    branches:
-      - main
+on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -14,6 +11,7 @@ jobs:
       - name: Build
         run: npm run build
       - name: Push
+        if: ${{ github.event_name == 'push' && github.ref_name == 'main' }}
         run: |
           git config --global user.email "<>"
           git config --global user.name "Build Bot"
