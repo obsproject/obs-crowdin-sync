@@ -22,7 +22,7 @@ let scopeDownloads: NOCK.Scope;
 let scopeMain: NOCK.Scope;
 
 beforeAll(async () => {
-	const rootDir = 'tests/worktree/download';
+	const rootDir = 'tests/temp/download';
 	if (await FSE.pathExists(rootDir)) {
 		await FSE.rm(rootDir, { recursive: true });
 	}

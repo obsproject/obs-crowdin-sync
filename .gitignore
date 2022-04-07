@@ -1,5 +1,5 @@
 .vscode/
 node_modules/
-tests/worktree/
+tests/temp/
 dist.js
 */package.json
