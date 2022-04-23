@@ -10,7 +10,7 @@
 	"type": "module",
 	"dependencies": {
 		"@actions/core": "^1.6.0",
-		"@crowdin/crowdin-api-client": "^1.14.1",
+		"@crowdin/crowdin-api-client": "^1.18.0",
 		"adm-zip": "^0.5.9",
 		"axios": "^0.26.0",
 		"fs-extra": "^10.0.1",

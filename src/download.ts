@@ -3,7 +3,7 @@ import ZIP from 'adm-zip';
 import PLIMIT from 'p-limit';
 import PATH from 'path';
 import FSE from 'fs-extra';
-import CROWDIN, { ReportsModel, UsersModel } from '@crowdin/crowdin-api-client';
+import CROWDIN from '@crowdin/crowdin-api-client';
 import * as ACTIONS from '@actions/core';
 
 import STRINGS from './strings';
@@ -176,8 +176,7 @@ const requestLimit = PLIMIT(10);
 export async function getTranslators(targetLanguageIds: string[]): Promise<string> {
 	// blocked users
 	const blockedUsers: number[] = [];
-	for (const { data: blockedUser } of (await usersApi.withFetchAll().listProjectMembers(PROJECT_ID, undefined, UsersModel.Role.BLOCKED))
-		.data) {
+	for (const { data: blockedUser } of (await usersApi.withFetchAll().listProjectMembers(PROJECT_ID, { role: 'blocked' })).data) {
 		blockedUsers.push(blockedUser.id);
 	}
 	// report
@@ -190,8 +189,8 @@ export async function getTranslators(targetLanguageIds: string[]): Promise<strin
 						await reportsApi.generateReport(PROJECT_ID, {
 							name: 'top-members',
 							schema: {
-								unit: ReportsModel.Unit.WORDS,
-								format: ReportsModel.Format.JSON,
+								unit: 'words',
+								format: 'json',
 								dateFrom: '2014-01-01T00:00:00+00:00',
 								dateTo: '2030-01-01T00:00:00+00:00',
 								languageId
@@ -252,7 +251,7 @@ export async function getTranslators(targetLanguageIds: string[]): Promise<strin
  */
 export async function buildProject(): Promise<number> {
 	if (process.env.CROWDIN_ORG) {
-		const { id, status } = (await translationsApi.listProjectBuilds(PROJECT_ID, undefined, 1)).data[0].data;
+		const { id, status } = (await translationsApi.listProjectBuilds(PROJECT_ID, { limit: 1 })).data[0].data;
 		if (status === 'finished') {
 			return id;
 		}
