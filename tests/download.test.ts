@@ -28,8 +28,7 @@ beforeAll(async () => {
 	}
 	await FSE.mkdir(`${rootDir}/translations`, { recursive: true });
 	process.chdir(`${rootDir}/translations`);
-	const buildArchive = new ZIP();
-	let crowdinBuildFiles: Record<string, string> = {
+	const crowdinBuildFiles: Record<string, string> = {
 		'UI/data/locale/de-DE.ini': '\nLanguage="Deutsch"\nOK="Okay"\n\nApply="Übernehmen"\nCancel="Abbre\nchen"\n\n',
 		'UI/data/locale/fr-FR.ini': 'abc="123"',
 		'UI/data/locale/en-GB.ini': 'Language="English (UK)"\nOK="OK"',
@@ -44,8 +43,9 @@ beforeAll(async () => {
 		'plugins/missing/data/locale/de-DE.ini': 'Content',
 		'plugins/missing/data/locale/fr-FR.ini': 'Content'
 	};
+	const buildArchive = new ZIP();
 	for (const file in crowdinBuildFiles) {
-		buildArchive.addFile(file, Buffer.from(crowdinBuildFiles[file], 'utf-8'));
+		buildArchive.addFile(file, Buffer.from(crowdinBuildFiles[file]));
 		let createDir = true;
 		for (const skippedFile of ['Website/', 'desktop-entry/', 'plugins/missing/']) {
 			if (file.startsWith(skippedFile)) {
@@ -56,7 +56,7 @@ beforeAll(async () => {
 			await FSE.mkdir(PATH.parse(file).dir, { recursive: true });
 		}
 	}
-	buildArchive.writeZip('../Build.zip');
+	await buildArchive.writeZipPromise('../Build.zip');
 
 	const previousFiles: Record<string, string> = {
 		'UI/data/locale/an-ES.ini': 'previous',
