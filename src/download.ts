@@ -312,19 +312,19 @@ export async function processBuild(
 		}
 	}
 	// Download build.
-	const zipFile = new ZIP(
+	const build = new ZIP(
 		(await AXIOS.get((await translationsApi.downloadTranslations(PROJECT_ID, buildId)).data.url, { responseType: 'arraybuffer' })).data
 	);
 	const desktopFileTranslations = new Map<string, Map<string, string>>(); // <locale, <stringKey, translation>>
 	const languageList = new Map<string, string>(); // <locale, localeLanguageName>
 	const missingDirs: string[] = [];
-	for (const zipEntry of zipFile.getEntries()) {
+	for (const zipEntry of build.getEntries()) {
 		const entryFullPath = zipEntry.entryName;
 		const { dir: entryDir, name: entryName } = PATH.parse(entryFullPath);
 		if (entryDir === 'Website') {
 			continue;
 		}
-		let fileContent = normalize(zipFile.readAsText(zipEntry));
+		let fileContent = normalize(build.readAsText(zipEntry));
 		if (fileContent.length === 0) {
 			continue;
 		}
