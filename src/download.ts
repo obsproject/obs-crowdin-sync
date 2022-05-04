@@ -321,7 +321,7 @@ export async function processBuild(
 	for (const zipEntry of build.getEntries()) {
 		const entryFullPath = zipEntry.entryName;
 		const { dir: entryDir, name: entryName } = PATH.parse(entryFullPath);
-		if (entryDir === 'Website') {
+		if (entryDir.startsWith('Website')) {
 			continue;
 		}
 		let fileContent = normalize(build.readAsText(zipEntry));
