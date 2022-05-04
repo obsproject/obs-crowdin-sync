@@ -35,6 +35,7 @@ beforeAll(async () => {
 		'UI/data/locale/bem-ZM.ini': '\n\n\n\n\n\n',
 		'UI/frontend-plugins/frontend-tools/data/locale/de-DE.ini': 'abc="123"',
 		'Website/de-DE.php': 'Content',
+		'Website/webFolder/de-DE.php': 'Content',
 		'plugins/enc-amf/resources/locale/de-DE.ini': 'abc="123"',
 		'plugins/mac-virtualcam/src/obs-plugin/data/locale/de-DE.ini': 'abc="123"',
 		'plugins/decklink/data/locale/de-DE.ini': 'abc="123"',
