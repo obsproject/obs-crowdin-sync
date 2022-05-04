@@ -8,7 +8,7 @@ import { execSync } from 'child_process';
  * @param millesec Number of milliseconds to wait.
  * @returns Promise resolution after `millesec` milliseconds.
  */
-export function wait(millesec: number): Promise<any> {
+export function wait(millesec: number): Promise<void> {
 	if (process.env.JEST_WORKER_ID !== undefined) {
 		millesec = 0;
 	}
