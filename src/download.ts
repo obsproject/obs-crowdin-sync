@@ -329,12 +329,7 @@ export async function processBuild(
 
 		let fixedLineBreaks = '';
 		for (const line of fileContent.trimEnd().split('\n')) {
-			if (line.includes('="') && line.indexOf('="') !== line.length - 2) {
-				fixedLineBreaks += '\n';
-			} else {
-				fixedLineBreaks += '\\n';
-			}
-			fixedLineBreaks += line;
+			fixedLineBreaks += (line.includes('="') && !line.endsWith('="') ? '\n' : '\\n') + line;
 		}
 		fileContent = fixedLineBreaks.trimStart();
 
