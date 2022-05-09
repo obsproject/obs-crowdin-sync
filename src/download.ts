@@ -174,12 +174,11 @@ const requestLimit = PLIMIT(10);
  * @returns List of translators, with heading.
  */
 export async function getTranslators(targetLanguageIds: string[]): Promise<string> {
-	// blocked users
 	const blockedUsers: number[] = [];
 	for (const { data: blockedUser } of (await usersApi.withFetchAll().listProjectMembers(PROJECT_ID, { role: 'blocked' })).data) {
 		blockedUsers.push(blockedUser.id);
 	}
-	// report
+
 	const requests = [];
 	for (const languageId of targetLanguageIds) {
 		requests.push(
@@ -222,7 +221,6 @@ export async function getTranslators(targetLanguageIds: string[]): Promise<strin
 		}
 		for (const userObj of reportData.data) {
 			const fullName: string = userObj.user.fullName;
-			// Skip deleted and blocked accounts.
 			if (fullName === 'REMOVED_USER' || blockedUsers.includes(Number(userObj.user.id))) {
 				continue;
 			}
@@ -311,7 +309,7 @@ export async function processBuild(
 			translatedSourceMap.set(filePaths.get(key)!, sourceFiles.get(key)!);
 		}
 	}
-	// Download build.
+
 	const build = new ZIP(
 		(await AXIOS.get((await translationsApi.downloadTranslations(PROJECT_ID, buildId)).data.url, { responseType: 'arraybuffer' })).data
 	);
@@ -328,7 +326,7 @@ export async function processBuild(
 		if (fileContent.length === 0) {
 			continue;
 		}
-		// Replace line breaks with \n, as OBS only supports on-line translations.
+
 		let fixedLineBreaks = '';
 		for (const line of fileContent.trimEnd().split('\n')) {
 			if (line.includes('="') && line.indexOf('="') !== line.length - 2) {
@@ -339,7 +337,7 @@ export async function processBuild(
 			fixedLineBreaks += line;
 		}
 		fileContent = fixedLineBreaks.trimStart();
-		// Desktop Entry
+
 		if (entryDir === 'desktop-entry') {
 			const translations = new Map<string, string>();
 			for (const line of fileContent.split('\n')) {
@@ -497,7 +495,6 @@ function pushChanges(detachedSubmodules: string[], submodules: string[]): void {
 	exec('git push');
 }
 
-// Executes steps simultaneously where possible.
 (async () => {
 	if (JEST_RUN) {
 		return;
