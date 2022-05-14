@@ -31,38 +31,54 @@ function getChangedFiles(): string {
  * @param changedFiles Files changed by the commits.
  */
 export async function upload(changedFiles: string): Promise<void> {
-	const sourceFilesPaths = new Map<string, number>();
-	for (const { data: sourceFile } of (await sourceFilesApi.withFetchAll().listProjectFiles(PROJECT_ID)).data) {
-		const exportOptions = sourceFile.exportOptions;
+	const crowdinFilePaths = new Map<string, number>();
+	for (const { data: crowdinFile } of (await sourceFilesApi.withFetchAll().listProjectFiles(PROJECT_ID)).data) {
+		const exportOptions = crowdinFile.exportOptions;
 		if (!exportOptions) {
 			continue;
 		}
-		sourceFilesPaths.set(
+		crowdinFilePaths.set(
 			exportOptions.exportPattern
 				.substring(1)
-				.replace('%file_name%', PATH.parse(sourceFile.name).name)
+				.replace('%file_name%', PATH.parse(crowdinFile.name).name)
 				.replace('%locale%', STRINGS.englishLanguage.locale),
-			sourceFile.id
+			crowdinFile.id
 		);
 	}
-	const failedFiles = [];
 	for (const filePath of normalize(changedFiles).split('\n')) {
 		if (!filePath.endsWith(`/${STRINGS.englishLanguage.locale}.ini`)) {
 			continue;
 		}
-		if (sourceFilesPaths.has(filePath)) {
-			await sourceFilesApi.updateOrRestoreFile(PROJECT_ID, sourceFilesPaths.get(filePath)!, {
-				storageId: (await uploadStorageApi.addStorage('File.ini', await FSE.readFile(filePath))).data.id
-			});
-			ACTIONS.notice(`${filePath} updated on Crowdin.`);
-		} else {
-			failedFiles.push(filePath);
+		if (!(await FSE.pathExists(filePath))) {
+			continue;
 		}
-	}
-	if (failedFiles.length !== 0) {
-		ACTIONS.setFailed(
-			`Some files couldn't be found on Crowdin and/or their export paths need to be fixed to get updated:\n ${failedFiles.join('\n ')}`
-		);
+		const storageId = async () => (await uploadStorageApi.addStorage('File.ini', await FSE.readFile(filePath))).data.id;
+
+		const pathParts = filePath.split('/');
+		if (crowdinFilePaths.has(filePath)) {
+			await sourceFilesApi.updateOrRestoreFile(PROJECT_ID, crowdinFilePaths.get(filePath)!, { storageId: await storageId() });
+			ACTIONS.notice(filePath + ' updated on Crowdin.');
+			continue;
+		}
+		if (/^plugins\/.*\/data\/locale$/.test(PATH.parse(filePath).dir)) {
+			await sourceFilesApi.createFile(PROJECT_ID, {
+				name: pathParts[1] + '.ini',
+				storageId: await storageId(),
+				directoryId: 28,
+				exportOptions: { exportPattern: '/plugins/%file_name%/data/locale/%locale%.ini' }
+			});
+		} else if (/^UI\/frontend-plugins\/.*\/data\/locale$/.test(PATH.parse(filePath).dir)) {
+			await sourceFilesApi.createFile(PROJECT_ID, {
+				name: pathParts[2] + '.ini',
+				storageId: await storageId(),
+				directoryId: 136,
+				exportOptions: { exportPattern: '/UI/frontend-plugins/%file_name%/data/locale/%locale%.ini' }
+			});
+		} else {
+			ACTIONS.error(filePath + ' not uploaded to Crowdin due to its unexpected location. This may be intended.');
+			continue;
+		}
+		ACTIONS.notice(filePath + ' uploaded to Crowdin.');
 	}
 }
 
