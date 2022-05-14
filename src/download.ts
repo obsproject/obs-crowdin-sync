@@ -428,9 +428,7 @@ export async function createLocaleFile(languageList: Map<string, string>, langua
 		if (languageList.has(locale)) {
 			result += `[${locale}]\nName=${languageList.get(locale)}\n\n`;
 		} else {
-			ACTIONS.error(
-				`${locale} was supposed to be included but is missing the language name ('Language' string in 'Main Application' file).`
-			);
+			ACTIONS.error(locale + ' is missing a translation for its language name and could therefore not be included in the language list.');
 		}
 	}
 	await FSE.writeFile(languagueListPath, `${result.trimEnd()}\n`);
