@@ -8,7 +8,7 @@ import * as ACTIONS from '@actions/core';
 
 import STRINGS from './strings';
 import { wait, exec, normalize } from './utils';
-import { PROJECT_ID, SOURCE_EQUALITY_CHECK_DIRS, GIT_ALLOW_LIST, CROWDIN_PAT, JEST_RUN } from './constants';
+import { PROJECT_ID, CROWDIN_PAT, JEST_RUN } from './constants';
 
 if (!CROWDIN_PAT && !JEST_RUN) {
 	ACTIONS.error('Environment variable CROWDIN_PAT not provided, skipping action');
@@ -40,13 +40,15 @@ async function emptyTranslationDir(dirPath: string): Promise<void> {
  *
  * @returns A list of submodules with translataable files.
  */
-function getSubmodules(): string[] {
+async function getSubmodules(): Promise<string[]> {
 	const submodules = [];
 	for (const line of exec('git config --file .gitmodules --get-regexp path').trimEnd().split('\n')) {
-		for (const submodule of ['enc-amf', 'obs-browser', 'obs-vst']) {
-			if (submodule.includes(line.substring(line.indexOf(' plugins/') + 9, line.length))) {
-				submodules.push(submodule);
-			}
+		const submodulePath = line.split(' ')[1];
+		if (
+			(await FSE.pathExists(submodulePath + '/data/locale/en-US.ini')) ||
+			(submodulePath === 'plugins/enc-amf' && FSE.pathExists('plugins/enc-amf/resources/locale/en-US.ini'))
+		) {
+			submodules.push(submodulePath.split('/')[1]);
 		}
 	}
 	return submodules;
@@ -117,10 +119,7 @@ export async function getSourceFiles(filePaths: Map<number, string>): Promise<Ma
 	let currentFileStrings: Map<string, string> | undefined;
 	for (const { data: sourceString } of (await sourceStringsApi.withFetchAll().listProjectStrings(PROJECT_ID)).data) {
 		const fileId = sourceString.fileId;
-		if (
-			filePaths.has(fileId) &&
-			!SOURCE_EQUALITY_CHECK_DIRS.includes(filePaths.get(fileId)!.substring(0, filePaths.get(fileId)!.indexOf('/')))
-		) {
+		if (filePaths.has(fileId) && !['UI', 'plugins'].includes(filePaths.get(fileId)!.substring(0, filePaths.get(fileId)!.indexOf('/')))) {
 			continue;
 		}
 		if (fileId !== currentFileId) {
@@ -446,26 +445,34 @@ function pushChanges(detachedSubmodules: string[], submodules: string[]): void {
 	exec(`git config --global user.name '${STRINGS.git.committer.name}'`);
 	exec(`git config --global user.email '${STRINGS.git.committer.email}'`);
 	for (const submodule of submodules) {
-		process.chdir(`plugins/${submodule}`);
+		process.chdir('plugins/' + submodule);
 		if (exec('git status --porcelain').length === 0) {
 			process.chdir('../..');
 			continue;
 		}
-		exec(`git add '${GIT_ALLOW_LIST[submodule]}'`);
+		exec(`git add '${submodule === 'enc-amf' ? 'resources/locale/*-*.ini' : 'data/locale/*-*.ini'}'`);
 		exec(`git commit -m '${STRINGS.git.commitTitle}'`);
 		exec('git push');
 		process.chdir('../..');
 	}
-	for (const path of GIT_ALLOW_LIST.all) {
-		exec(`git add '${path}'`);
+	for (const allowedPath of [
+		'AUTHORS',
+		'plugins/*/data/locale/*-*.ini',
+		'plugins/mac-virtualcam/src/obs-plugin/data/locale/*-*.ini',
+		'UI/data/locale.ini',
+		'UI/data/locale/*-*.ini',
+		'UI/xdg-data/com.obsproject.Studio.desktop',
+		'UI/frontend-plugins/*/data/locale/*-*.ini'
+	]) {
+		exec(`git add '${allowedPath}'`);
 	}
 	for (const submodule of submodules) {
-		exec(`git add plugins/${submodule}`);
+		exec('git add plugins/' + submodule);
 	}
 	for (const submodule of detachedSubmodules) {
 		ACTIONS.info(`${submodule} has commits not pushed to the main repository. Only pushing to submodule.`);
-		exec(`git checkout HEAD -- plugins/${submodule}`);
-		exec(`git submodule update --init plugins/${submodule}`);
+		exec('git checkout HEAD -- plugins/' + submodule);
+		exec('git submodule update --init plugins/' + submodule);
 	}
 	if (exec('git status --porcelain').length === 0) {
 		ACTIONS.info('No changes in main repository. Skipping push.');
@@ -481,7 +488,7 @@ function pushChanges(detachedSubmodules: string[], submodules: string[]): void {
 	}
 	try {
 		await removePreviousTranslations();
-		const submodules = getSubmodules();
+		const submodules = await getSubmodules();
 		const results = [];
 		results[0] = await Promise.all([getDetachedSubmodules(submodules), getFilePaths(), buildTranslations(), getLanguages()]);
 		results[1] = await Promise.all([
