@@ -1,9 +1,9 @@
-name: Check Format
+name: Format Check
 on: [push, pull_request]
 jobs:
   code-format:
     runs-on: ubuntu-latest
-    name: Check Format
+    name: Format Check
     steps:
       - name: Checkout
         uses: actions/checkout@v3
