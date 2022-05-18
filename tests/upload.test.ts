@@ -6,8 +6,9 @@ import * as ACTIONS from '@actions/core';
 import { upload } from '../src/upload';
 import { PROJECT_ID } from '../src/constants';
 
-let scopeMain: NOCK.Scope;
-let scopeStorages: NOCK.Scope;
+const scopeMain = NOCK('https://api.crowdin.com/api/v2/projects/' + PROJECT_ID);
+const scopeStorages = NOCK('https://api.crowdin.com/api/v2/storages');
+const MAX_API_PAGE_SIZE = 500;
 
 beforeAll(async () => {
 	const rootDir = 'tests/temp/upload';
@@ -26,9 +27,10 @@ beforeAll(async () => {
 		await FSE.mkdir(PATH.parse(filePath).dir, { recursive: true });
 		await FSE.writeFile(filePath, content);
 	}
+});
 
-	const MAX_API_PAGE_SIZE = 500;
-	scopeMain = NOCK(`https://api.crowdin.com/api/v2/projects/${PROJECT_ID}`)
+it(upload.name, async () => {
+	scopeMain
 		.get('/files')
 		.query({ limit: MAX_API_PAGE_SIZE })
 		.reply(200, {
@@ -66,8 +68,7 @@ beforeAll(async () => {
 			}
 		})
 		.reply(201);
-
-	scopeStorages = NOCK('https://api.crowdin.com/api/v2/storages')
+	scopeStorages
 		.post('', '\n# Comment"\nYes="Yes"\nCancel="Cancel"\n')
 		.reply(201, {
 			data: {
@@ -86,9 +87,7 @@ beforeAll(async () => {
 				id: 3
 			}
 		});
-});
 
-it(upload.name, async () => {
 	const noticeMock = jest.spyOn(ACTIONS, 'notice').mockImplementation(a => {});
 	const errorMock = jest.spyOn(ACTIONS, 'error').mockImplementation(() => {});
 
