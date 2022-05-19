@@ -10,7 +10,7 @@ import {
 	getLanguages,
 	getFilePaths,
 	getTranslators,
-	buildProject,
+	buildTranslations,
 	getSourceFiles,
 	processBuild,
 	createLocaleFile,
@@ -18,8 +18,9 @@ import {
 	removePreviousTranslations
 } from '../src/download';
 
-let scopeDownloads: NOCK.Scope;
-let scopeMain: NOCK.Scope;
+const scopeMain = NOCK('https://api.crowdin.com/api/v2/projects/' + PROJECT_ID);
+const scopeDownloads = NOCK('https://downloads.net');
+const MAX_API_PAGE_SIZE = 500;
 
 beforeAll(async () => {
 	const rootDir = 'tests/temp/download';
@@ -34,27 +35,21 @@ beforeAll(async () => {
 		'UI/data/locale/en-GB.ini': 'Language="English (UK)"\nOK="OK"',
 		'UI/data/locale/bem-ZM.ini': '\n\n\n\n\n\n',
 		'UI/frontend-plugins/frontend-tools/data/locale/de-DE.ini': 'abc="123"',
-		'Website/de-DE.php': 'Content',
-		'Website/webFolder/de-DE.php': 'Content',
 		'plugins/enc-amf/resources/locale/de-DE.ini': 'abc="123"',
 		'plugins/mac-virtualcam/src/obs-plugin/data/locale/de-DE.ini': 'abc="123"',
 		'plugins/decklink/data/locale/de-DE.ini': 'abc="123"',
 		'desktop-entry/en_GB.ini': 'GenericName="enName"\nComment="enComment"',
 		'desktop-entry/de_DE.ini': 'GenericName="deName"\nComment="deComment"\n\n',
 		'plugins/missing/data/locale/de-DE.ini': 'Content',
-		'plugins/missing/data/locale/fr-FR.ini': 'Content'
+		'plugins/missing/data/locale/fr-FR.ini': 'Content',
+		'unexpectedDir/somefile.ini': 'Unexpected'
 	};
 	const buildArchive = new ZIP();
 	for (const file in crowdinBuildFiles) {
 		buildArchive.addFile(file, Buffer.from(crowdinBuildFiles[file]));
-		let createDir = true;
-		for (const skippedFile of ['Website/', 'desktop-entry/', 'plugins/missing/']) {
-			if (file.startsWith(skippedFile)) {
-				createDir = false;
-			}
-		}
-		if (createDir) {
-			await FSE.mkdir(PATH.parse(file).dir, { recursive: true });
+		const dir = PATH.parse(file).dir;
+		if (dir.startsWith('UI') || (dir.startsWith('plugins') && !dir.startsWith('plugins/missing/data/locale'))) {
+			await FSE.mkdir(dir, { recursive: true });
 		}
 	}
 	await buildArchive.writeZipPromise('../Build.zip');
@@ -68,87 +63,37 @@ beforeAll(async () => {
 	for (const file in previousFiles) {
 		await FSE.writeFile(file, previousFiles[file]);
 	}
-
 	await removePreviousTranslations();
+});
 
-	const MAX_API_PAGE_SIZE = 500;
-	scopeDownloads = NOCK('https://downloads.net')
-		.get('/reports/1234')
-		.reply(200, {
-			language: {
-				name: 'German'
-			},
-			data: [
+it(getLanguages.name, async () => {
+	scopeMain.get('').reply(200, {
+		data: {
+			targetLanguageIds: ['de', 'fr'],
+			targetLanguages: [
 				{
-					user: {
-						id: 5,
-						fullName: 'Blocked User'
-					},
-					translated: 124,
-					approved: 123
+					locale: 'de-DE',
+					id: 'de'
 				},
 				{
-					user: {
-						id: 1,
-						fullName: 'First User'
-					},
-					translated: 123,
-					approved: 12
-				},
-				{
-					user: {
-						id: 2,
-						fullName: 'Last User'
-					},
-					translated: 5,
-					approved: 0
+					locale: 'fr-FR',
+					id: 'fr'
 				}
 			]
-		})
-		.get('/reports/4321')
-		.reply(200, {
-			language: {
-				name: 'French'
-			},
-			data: [
-				{
-					user: {
-						id: 1,
-						fullName: 'REMOVED_USER'
-					},
-					translated: 5,
-					approved: 10
-				},
-				{
-					user: {
-						id: 2,
-						fullName: 'French Translator'
-					},
-					translated: 123,
-					approved: 12
-				}
-			]
-		})
-		.get('/builds/1')
-		.replyWithFile(200, '../Build.zip');
+		}
+	});
 
-	scopeMain = NOCK(`https://api.crowdin.com/api/v2/projects/${PROJECT_ID}`)
-		.get('')
-		.reply(200, {
-			data: {
-				targetLanguageIds: ['de', 'fr'],
-				targetLanguages: [
-					{
-						locale: 'de-DE',
-						id: 'de'
-					},
-					{
-						locale: 'fr-FR',
-						id: 'fr'
-					}
-				]
-			}
-		})
+	expect(await getLanguages()).toEqual({
+		languageCodeMap: new Map<string, string>([
+			['de-DE', 'de'],
+			['fr-FR', 'fr']
+		]),
+		targetLanguageIds: ['de', 'fr']
+	});
+});
+
+it(getFilePaths.name, async () => {
+	scopeMain
 		.get('/files')
 		.query({ limit: MAX_API_PAGE_SIZE })
 		.reply(200, {
@@ -172,7 +117,18 @@ beforeAll(async () => {
 					}
 				}
 			]
-		})
+		});
+
+	expect(await getFilePaths()).toEqual(
+		new Map<number, string>([
+			[29, 'UI/data/locale'],
+			[718, 'desktop-entry']
+		])
+	);
+});
+
+it(getTranslators.name, async () => {
+	scopeMain
 		.get('/members')
 		.query({
 			role: 'blocked',
@@ -242,8 +198,71 @@ beforeAll(async () => {
 			data: {
 				status: 'finished'
 			}
+		});
+	scopeDownloads
+		.get('/reports/1234')
+		.reply(200, {
+			language: {
+				name: 'German'
+			},
+			data: [
+				{
+					user: {
+						id: 5,
+						fullName: 'Blocked User'
+					},
+					translated: 124,
+					approved: 123
+				},
+				{
+					user: {
+						id: 1,
+						fullName: 'First User'
+					},
+					translated: 123,
+					approved: 12
+				},
+				{
+					user: {
+						id: 2,
+						fullName: 'Last User'
+					},
+					translated: 5,
+					approved: 0
+				}
+			]
 		})
-		.post('/translations/builds')
+		.get('/reports/4321')
+		.reply(200, {
+			language: {
+				name: 'French'
+			},
+			data: [
+				{
+					user: {
+						id: 1,
+						fullName: 'REMOVED_USER'
+					},
+					translated: 5,
+					approved: 10
+				},
+				{
+					user: {
+						id: 2,
+						fullName: 'French Translator'
+					},
+					translated: 123,
+					approved: 12
+				}
+			]
+		});
+
+	expect(await getTranslators(['de', 'fr'])).toBe('Translators:\n French:\n  French Translator\n German:\n  First User\n  Last User\n');
+});
+
+it(buildTranslations.name, async () => {
+	scopeMain
+		.post('/translations/builds/directories/738')
 		.reply(200, {
 			data: {
 				id: 1,
@@ -255,7 +274,13 @@ beforeAll(async () => {
 			data: {
 				status: 'finished'
 			}
-		})
+		});
+
+	expect(await buildTranslations()).toBe(1);
+});
+
+it(getSourceFiles.name, async () => {
+	scopeMain
 		.get('/strings')
 		.query({ limit: MAX_API_PAGE_SIZE })
 		.reply(200, () => {
@@ -298,73 +323,8 @@ beforeAll(async () => {
 					}
 				]
 			};
-		})
-		.get('/translations/builds/1/download')
-		.reply(200, {
-			data: {
-				url: 'https://downloads.net/builds/1'
-			}
-		})
-		.get('/languages/progress')
-		.query({ limit: MAX_API_PAGE_SIZE })
-		.reply(200, {
-			data: [
-				{
-					data: {
-						translationProgress: 22,
-						languageId: 'de'
-					}
-				},
-				{
-					data: {
-						translationProgress: 50,
-						languageId: 'en-GB'
-					}
-				},
-				{
-					data: {
-						translationProgress: 80,
-						languageId: 'fr'
-					}
-				},
-				{
-					data: {
-						translationProgress: 99,
-						languageId: 'da'
-					}
-				}
-			]
 		});
-});
 
-it(getLanguages.name, async () => {
-	expect(await getLanguages()).toEqual({
-		languageCodeMap: new Map<string, string>([
-			['de-DE', 'de'],
-			['fr-FR', 'fr']
-		]),
-		targetLanguageIds: ['de', 'fr']
-	});
-});
-
-it(getFilePaths.name, async () => {
-	expect(await getFilePaths()).toEqual(
-		new Map<number, string>([
-			[29, 'UI/data/locale'],
-			[718, 'desktop-entry']
-		])
-	);
-});
-
-it(getTranslators.name, async () => {
-	expect(await getTranslators(['de', 'fr'])).toBe('Translators:\n French:\n  French Translator\n German:\n  First User\n  Last User\n');
-});
-
-it(buildProject.name, async () => {
-	expect(await buildProject()).toBe(1);
-});
-
-it(getSourceFiles.name, async () => {
 	expect(
 		await getSourceFiles(
 			new Map<number, string>([
@@ -387,6 +347,13 @@ it(getSourceFiles.name, async () => {
 });
 
 it(processBuild.name, async () => {
+	scopeMain.get('/translations/builds/1/download').reply(200, {
+		data: {
+			url: 'https://downloads.net/builds/1'
+		}
+	});
+	scopeDownloads.get('/builds/1').replyWithFile(200, '../Build.zip');
+
 	const noticeMock = jest.spyOn(ACTIONS, 'notice').mockImplementation(() => {});
 	expect(
 		await processBuild(
@@ -480,6 +447,38 @@ it(processBuild.name, async () => {
 });
 
 it(createLocaleFile.name, async () => {
+	scopeMain
+		.get('/languages/progress')
+		.query({ limit: MAX_API_PAGE_SIZE })
+		.reply(200, {
+			data: [
+				{
+					data: {
+						translationProgress: 22,
+						languageId: 'de'
+					}
+				},
+				{
+					data: {
+						translationProgress: 50,
+						languageId: 'en-GB'
+					}
+				},
+				{
+					data: {
+						translationProgress: 80,
+						languageId: 'fr'
+					}
+				},
+				{
+					data: {
+						translationProgress: 99,
+						languageId: 'da'
+					}
+				}
+			]
+		});
+
 	const languageListPath = 'UI/data/locale.ini';
 	await FSE.writeFile(languageListPath, '[ab-cd]\nName=LanguageName\n[de-DE]\nName=Deutsch\n[fr-FR]\nName=Français\n\n');
 	await createLocaleFile(

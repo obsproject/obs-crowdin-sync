@@ -247,18 +247,8 @@ export async function getTranslators(targetLanguageIds: string[]): Promise<strin
  *
  * @returns The build id.
  */
-export async function buildProject(): Promise<number> {
-	if (process.env.CROWDIN_ORG) {
-		const { id, status } = (await translationsApi.listProjectBuilds(PROJECT_ID, { limit: 1 })).data[0].data;
-		if (status === 'finished') {
-			return id;
-		}
-	}
-	const { id, status } = (
-		await translationsApi.buildProject(PROJECT_ID, {
-			skipUntranslatedStrings: true
-		})
-	).data;
+export async function buildTranslations(): Promise<number> {
+	const { id, status } = (await translationsApi.buildProjectDirectoryTranslation(PROJECT_ID, 738, { skipUntranslatedStrings: true })).data;
 	let finished = status === 'finished';
 	while (!finished) {
 		await wait(5000);
@@ -319,9 +309,6 @@ export async function processBuild(
 	for (const zipEntry of build.getEntries()) {
 		const entryFullPath = zipEntry.entryName;
 		const { dir: entryDir, name: entryName } = PATH.parse(entryFullPath);
-		if (entryDir.startsWith('Website')) {
-			continue;
-		}
 		let fileContent = normalize(build.readAsText(zipEntry));
 		if (fileContent.length === 0) {
 			continue;
@@ -498,7 +485,7 @@ function pushChanges(detachedSubmodules: string[], submodules: string[]): void {
 		await removePreviousTranslations();
 		const submodules = getSubmodules();
 		const results = [];
-		results[0] = await Promise.all([getDetachedSubmodules(submodules), getFilePaths(), buildProject(), getLanguages()]);
+		results[0] = await Promise.all([getDetachedSubmodules(submodules), getFilePaths(), buildTranslations(), getLanguages()]);
 		results[1] = await Promise.all([
 			generateAuthors(getGitContributors(), await getTranslators(results[0][3].targetLanguageIds)),
 			processBuild(results[0][2], await getSourceFiles(results[0][1]), results[0][1])
