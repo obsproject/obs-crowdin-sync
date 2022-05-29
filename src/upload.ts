@@ -53,14 +53,18 @@ export async function upload(changedFiles: string[]): Promise<void> {
 		if (!filePath.endsWith(`/${STRINGS.englishLanguage.locale}.ini`)) {
 			continue;
 		}
+
+		const crowdinFileId = crowdinFilePaths.get(filePath)!;
 		if (!(await FSE.pathExists(filePath))) {
+			await sourceFilesApi.deleteFile(PROJECT_ID, crowdinFileId);
+			ACTIONS.notice(filePath + ' removed from Crowdin.');
 			continue;
 		}
-		const storageId = async () => (await uploadStorageApi.addStorage('File.ini', await FSE.readFile(filePath))).data.id;
 
+		const storageId = async () => (await uploadStorageApi.addStorage('File.ini', await FSE.readFile(filePath))).data.id;
 		const pathParts = filePath.split('/');
 		if (crowdinFilePaths.has(filePath)) {
-			await sourceFilesApi.updateOrRestoreFile(PROJECT_ID, crowdinFilePaths.get(filePath)!, { storageId: await storageId() });
+			await sourceFilesApi.updateOrRestoreFile(PROJECT_ID, crowdinFileId, { storageId: await storageId() });
 			ACTIONS.notice(filePath + ' updated on Crowdin.');
 			continue;
 		}

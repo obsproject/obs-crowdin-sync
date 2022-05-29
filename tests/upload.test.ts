@@ -43,6 +43,15 @@ it(upload.name, async () => {
 						id: 29,
 						name: 'UI.ini'
 					}
+				},
+				{
+					data: {
+						exportOptions: {
+							exportPattern: '/plugins/%file_name%/data/locale/%locale%.ini'
+						},
+						id: 187,
+						name: 'removed.ini'
+					}
 				}
 			]
 		})
@@ -67,7 +76,9 @@ it(upload.name, async () => {
 				exportPattern: '/UI/frontend-plugins/%file_name%/data/locale/%locale%.ini'
 			}
 		})
-		.reply(201);
+		.reply(201)
+		.delete('/files/187')
+		.reply(204);
 	scopeStorages
 		.post('', '\n# Comment"\nYes="Yes"\nCancel="Cancel"\n')
 		.reply(201, {
@@ -96,12 +107,14 @@ it(upload.name, async () => {
 		'AUTHORS',
 		'UI/frontend-plugins/some-frontend/data/locale/en-US.ini',
 		'plugins/my-plugin/data/locale/en-US.ini',
-		'plugins/data/locale/en-US.ini'
+		'plugins/data/locale/en-US.ini',
+		'plugins/removed/data/locale/en-US.ini'
 	]);
 
 	expect(noticeMock).toBeCalledWith('UI/data/locale/en-US.ini updated on Crowdin.');
 	expect(noticeMock).toBeCalledWith('UI/frontend-plugins/some-frontend/data/locale/en-US.ini uploaded to Crowdin.');
 	expect(noticeMock).toBeCalledWith('plugins/my-plugin/data/locale/en-US.ini uploaded to Crowdin.');
+	expect(noticeMock).toBeCalledWith('plugins/removed/data/locale/en-US.ini removed from Crowdin.');
 	expect(errorMock).toBeCalledWith(
 		'plugins/data/locale/en-US.ini not uploaded to Crowdin due to its unexpected location. This may be intended.'
 	);
