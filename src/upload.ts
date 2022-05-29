@@ -8,7 +8,7 @@ import { exec, normalize } from './utils';
 import { PROJECT_ID, CROWDIN_PAT, JEST_RUN } from './constants';
 
 if (!CROWDIN_PAT && !JEST_RUN) {
-	ACTIONS.error('Environment variable CROWDIN_PAT not provided, skipping action.');
+	ACTIONS.error('Environment variable CROWDIN_PAT not provided. Skipping action.');
 	process.exit(0);
 }
 
@@ -19,10 +19,14 @@ const { sourceFilesApi, uploadStorageApi } = new CROWDIN({
 /**
  * Uses `git diff` to get the files changed by the commits.
  *
- * @returns `string` of files changed by the commits.
+ * @returns List of files changed by the commits.
  */
-function getChangedFiles(): string {
-	return exec(`git diff --name-only ${process.env.GITHUB_EVENT_BEFORE} ${process.env.GITHUB_SHA}`);
+function getChangedFiles(): string[] {
+	if (exec(`git log --format=%B ${process.env.GITHUB_EVENT_BEFORE}..${process.env.GITHUB_SHA}`).includes('[skip crowdin-sync]')) {
+		ACTIONS.info('Found [skip crowdin-sync] in at least one commit message. Skipping action.');
+		process.exit(0);
+	}
+	return normalize(exec(`git diff --name-only ${process.env.GITHUB_EVENT_BEFORE}..${process.env.GITHUB_SHA}`)).split('\n');
 }
 
 /**
@@ -30,7 +34,7 @@ function getChangedFiles(): string {
  *
  * @param changedFiles Files changed by the commits.
  */
-export async function upload(changedFiles: string): Promise<void> {
+export async function upload(changedFiles: string[]): Promise<void> {
 	const crowdinFilePaths = new Map<string, number>();
 	for (const { data: crowdinFile } of (await sourceFilesApi.withFetchAll().listProjectFiles(PROJECT_ID)).data) {
 		const exportOptions = crowdinFile.exportOptions;
@@ -45,7 +49,7 @@ export async function upload(changedFiles: string): Promise<void> {
 			crowdinFile.id
 		);
 	}
-	for (const filePath of normalize(changedFiles).split('\n')) {
+	for (const filePath of changedFiles) {
 		if (!filePath.endsWith(`/${STRINGS.englishLanguage.locale}.ini`)) {
 			continue;
 		}

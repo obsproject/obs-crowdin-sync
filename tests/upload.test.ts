@@ -91,9 +91,13 @@ it(upload.name, async () => {
 	const noticeMock = jest.spyOn(ACTIONS, 'notice').mockImplementation(a => {});
 	const errorMock = jest.spyOn(ACTIONS, 'error').mockImplementation(() => {});
 
-	await upload(
-		'UI/data/locale/en-US.ini\nAUTHORS\nUI/frontend-plugins/some-frontend/data/locale/en-US.ini\nplugins/my-plugin/data/locale/en-US.ini\nplugins/data/locale/en-US.ini'
-	);
+	await upload([
+		'UI/data/locale/en-US.ini',
+		'AUTHORS',
+		'UI/frontend-plugins/some-frontend/data/locale/en-US.ini',
+		'plugins/my-plugin/data/locale/en-US.ini',
+		'plugins/data/locale/en-US.ini'
+	]);
 
 	expect(noticeMock).toBeCalledWith('UI/data/locale/en-US.ini updated on Crowdin.');
 	expect(noticeMock).toBeCalledWith('UI/frontend-plugins/some-frontend/data/locale/en-US.ini uploaded to Crowdin.');
