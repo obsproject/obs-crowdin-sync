@@ -262,6 +262,17 @@ it(getTranslators.name, async () => {
 
 it(buildTranslations.name, async () => {
 	scopeMain
+		.get('/directories')
+		.query({ filter: 'App' })
+		.reply(200, {
+			data: [
+				{
+					data: {
+						id: 738
+					}
+				}
+			]
+		})
 		.post('/translations/builds/directories/738')
 		.reply(200, {
 			data: {

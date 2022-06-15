@@ -251,7 +251,9 @@ export async function getTranslators(targetLanguageIds: string[]): Promise<strin
  * @returns The build id.
  */
 export async function buildTranslations(): Promise<number> {
-	const { id, status } = (await translationsApi.buildProjectDirectoryTranslation(PROJECT_ID, 738, { skipUntranslatedStrings: true })).data;
+	const appDirId = (await sourceFilesApi.listProjectDirectories(PROJECT_ID, { filter: 'App' })).data[0].data.id;
+	const { id, status } = (await translationsApi.buildProjectDirectoryTranslation(PROJECT_ID, appDirId, { skipUntranslatedStrings: true }))
+		.data;
 	let finished = status === 'finished';
 	while (!finished) {
 		await wait(5000);
