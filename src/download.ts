@@ -173,6 +173,10 @@ const requestLimit = PLIMIT(10);
  * @returns List of translators, with heading.
  */
 export async function getTranslators(targetLanguageIds: string[]): Promise<string> {
+	// free test projects don't have access to reports, so return to avoid error
+	if (process.env.CROWDIN_PROJECT_ID && !JEST_RUN) {
+		return '';
+	}
 	const blockedUsers: number[] = [];
 	for (const { data: blockedUser } of (await usersApi.withFetchAll().listProjectMembers(PROJECT_ID, { role: 'blocked' })).data) {
 		blockedUsers.push(blockedUser.id);
