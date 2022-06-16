@@ -57,7 +57,7 @@ export async function upload(changedFiles: string[]): Promise<void> {
 		const crowdinFileId = crowdinFilePaths.get(filePath)!;
 		if (!(await FSE.pathExists(filePath))) {
 			await sourceFilesApi.deleteFile(PROJECT_ID, crowdinFileId);
-			ACTIONS.notice(filePath + ' removed from Crowdin.');
+			ACTIONS.notice(`${filePath} removed from Crowdin.`);
 			continue;
 		}
 
@@ -65,28 +65,28 @@ export async function upload(changedFiles: string[]): Promise<void> {
 		const pathParts = filePath.split('/');
 		if (crowdinFilePaths.has(filePath)) {
 			await sourceFilesApi.updateOrRestoreFile(PROJECT_ID, crowdinFileId, { storageId: await storageId() });
-			ACTIONS.notice(filePath + ' updated on Crowdin.');
+			ACTIONS.notice(`${filePath} updated on Crowdin.`);
 			continue;
 		}
 		if (/^plugins\/.*\/data\/locale$/.test(PATH.parse(filePath).dir)) {
 			await sourceFilesApi.createFile(PROJECT_ID, {
-				name: pathParts[1] + '.ini',
+				name: `${pathParts[1]}.ini`,
 				storageId: await storageId(),
 				directoryId: 28,
 				exportOptions: { exportPattern: '/plugins/%file_name%/data/locale/%locale%.ini' }
 			});
 		} else if (/^UI\/frontend-plugins\/.*\/data\/locale$/.test(PATH.parse(filePath).dir)) {
 			await sourceFilesApi.createFile(PROJECT_ID, {
-				name: pathParts[2] + '.ini',
+				name: `${pathParts[2]}.ini`,
 				storageId: await storageId(),
 				directoryId: 136,
 				exportOptions: { exportPattern: '/UI/frontend-plugins/%file_name%/data/locale/%locale%.ini' }
 			});
 		} else {
-			ACTIONS.error(filePath + ' not uploaded to Crowdin due to its unexpected location. This may be intended.');
+			ACTIONS.error(`${filePath} not uploaded to Crowdin due to its unexpected location. This may be intended.`);
 			continue;
 		}
-		ACTIONS.notice(filePath + ' uploaded to Crowdin.');
+		ACTIONS.notice(`${filePath} uploaded to Crowdin.`);
 	}
 }
 

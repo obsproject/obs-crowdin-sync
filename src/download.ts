@@ -45,7 +45,7 @@ async function getSubmodules(): Promise<string[]> {
 	for (const line of exec('git config --file .gitmodules --get-regexp path').trimEnd().split('\n')) {
 		const submodulePath = line.split(' ')[1];
 		if (
-			(await FSE.pathExists(submodulePath + '/data/locale/en-US.ini')) ||
+			(await FSE.pathExists(`${submodulePath}/data/locale/en-US.ini`)) ||
 			(submodulePath === 'plugins/enc-amf' && FSE.pathExists('plugins/enc-amf/resources/locale/en-US.ini'))
 		) {
 			submodules.push(submodulePath.split('/')[1]);
@@ -433,7 +433,7 @@ export async function createLocaleFile(languageList: Map<string, string>, langua
 		if (languageList.has(locale)) {
 			result += `[${locale}]\nName=${languageList.get(locale)}\n\n`;
 		} else {
-			ACTIONS.error(locale + ' is missing a translation for its language name and could therefore not be included in the language list.');
+			ACTIONS.error(`${locale} is missing a translation for its language name and could therefore not be included in the language list.`);
 		}
 	}
 	await FSE.writeFile(languagueListPath, `${result.trimEnd()}\n`);
@@ -451,7 +451,7 @@ function pushChanges(detachedSubmodules: string[], submodules: string[]): void {
 	exec(`git config --global user.name '${STRINGS.git.committer.name}'`);
 	exec(`git config --global user.email '${STRINGS.git.committer.email}'`);
 	for (const submodule of submodules) {
-		process.chdir('plugins/' + submodule);
+		process.chdir(`plugins/${submodule}`);
 		if (exec('git status --porcelain').length === 0) {
 			process.chdir('../..');
 			continue;
@@ -473,12 +473,12 @@ function pushChanges(detachedSubmodules: string[], submodules: string[]): void {
 		exec(`git add '${allowedPath}'`);
 	}
 	for (const submodule of submodules) {
-		exec('git add plugins/' + submodule);
+		exec(`git add plugins/${submodule}`);
 	}
 	for (const submodule of detachedSubmodules) {
 		ACTIONS.info(`${submodule} has commits not pushed to the main repository. Only pushing to submodule.`);
-		exec('git checkout HEAD -- plugins/' + submodule);
-		exec('git submodule update --init plugins/' + submodule);
+		exec(`git checkout HEAD -- plugins/${submodule}`);
+		exec(`git submodule update --init plugins/${submodule}`);
 	}
 	if (exec('git status --porcelain').length === 0) {
 		ACTIONS.info('No changes in main repository. Skipping push.');
