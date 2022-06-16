@@ -1,5 +1,3 @@
-import FSE from 'fs-extra';
-import PATH from 'path';
 import { execSync } from 'child_process';
 
 /**
@@ -40,40 +38,4 @@ export function normalize(text: string): string {
 		text = text.replace('\n\n', '\n');
 	}
 	return text;
-}
-
-/**
- * Converts a directoy structure with all sub-files into one object.
- *
- * @param filePath The path to the file or directory.
- * @returns An object representing a directory structure.
- */
-export async function convertFileStructureToObject(filePath: string): Promise<{}> {
-	filePath = PATH.resolve(filePath);
-	if (!(await FSE.pathExists(filePath))) {
-		return {};
-	}
-	if ((await FSE.lstat(filePath)).isFile()) {
-		return {
-			name: PATH.basename(filePath),
-			content: await FSE.readFile(filePath, { encoding: 'utf-8' })
-		};
-	} else {
-		const fileList = [];
-		const dirFiles = await FSE.readdir(filePath);
-		for (const file of dirFiles) {
-			if (dirFiles.length === 1) {
-				const subfolderFileStructure = (await convertFileStructureToObject(`${filePath}/${file}`)) as any;
-				return {
-					name: `${PATH.basename(filePath)}/${subfolderFileStructure.name}`,
-					content: subfolderFileStructure.content
-				};
-			}
-			fileList.push(await convertFileStructureToObject(`${filePath}/${file}`));
-		}
-		return {
-			name: PATH.basename(filePath),
-			content: fileList
-		};
-	}
 }

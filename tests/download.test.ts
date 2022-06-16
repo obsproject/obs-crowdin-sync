@@ -5,7 +5,6 @@ import FSE from 'fs-extra';
 import * as ACTIONS from '@actions/core';
 
 import { PROJECT_ID } from '../src/constants';
-import { convertFileStructureToObject } from '../src/utils';
 import {
 	getLanguages,
 	getFilePaths,
@@ -17,6 +16,42 @@ import {
 	createDesktopFile,
 	removePreviousTranslations
 } from '../src/download';
+
+/**
+ * Converts a directoy structure with all sub-files into one object.
+ *
+ * @param filePath The path to the file or directory.
+ * @returns An object representing a directory structure.
+ */
+async function convertFileStructureToObject(filePath: string): Promise<{}> {
+	filePath = PATH.resolve(filePath);
+	if (!(await FSE.pathExists(filePath))) {
+		return {};
+	}
+	if ((await FSE.lstat(filePath)).isFile()) {
+		return {
+			name: PATH.basename(filePath),
+			content: await FSE.readFile(filePath, { encoding: 'utf-8' })
+		};
+	} else {
+		const fileList = [];
+		const dirFiles = await FSE.readdir(filePath);
+		for (const file of dirFiles) {
+			if (dirFiles.length === 1) {
+				const subfolderFileStructure = (await convertFileStructureToObject(`${filePath}/${file}`)) as any;
+				return {
+					name: `${PATH.basename(filePath)}/${subfolderFileStructure.name}`,
+					content: subfolderFileStructure.content
+				};
+			}
+			fileList.push(await convertFileStructureToObject(`${filePath}/${file}`));
+		}
+		return {
+			name: PATH.basename(filePath),
+			content: fileList
+		};
+	}
+}
 
 const scopeMain = NOCK('https://api.crowdin.com/api/v2/projects/' + PROJECT_ID);
 const scopeDownloads = NOCK('https://downloads.net');
