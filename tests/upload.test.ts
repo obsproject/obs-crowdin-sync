@@ -6,7 +6,7 @@ import * as ACTIONS from '@actions/core';
 import { upload } from '../src/upload';
 import { PROJECT_ID } from '../src/constants';
 
-const scopeMain = NOCK('https://api.crowdin.com/api/v2/projects/' + PROJECT_ID);
+const scopeMain = NOCK(`https://api.crowdin.com/api/v2/projects/${PROJECT_ID}`);
 const scopeStorages = NOCK('https://api.crowdin.com/api/v2/storages');
 const MAX_API_PAGE_SIZE = 500;
 

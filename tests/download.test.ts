@@ -53,7 +53,7 @@ async function convertFileStructureToObject(filePath: string): Promise<{}> {
 	}
 }
 
-const scopeMain = NOCK('https://api.crowdin.com/api/v2/projects/' + PROJECT_ID);
+const scopeMain = NOCK(`https://api.crowdin.com/api/v2/projects/${PROJECT_ID}`);
 const scopeDownloads = NOCK('https://downloads.net');
 const MAX_API_PAGE_SIZE = 500;
 
