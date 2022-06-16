@@ -118,7 +118,7 @@ export async function getSourceFiles(filePaths: Map<number, string>): Promise<Ma
 	let currentFileId;
 	let currentFileStrings: Map<string, string> | undefined;
 	for (const { data: sourceString } of (await sourceStringsApi.withFetchAll().listProjectStrings(PROJECT_ID)).data) {
-		const fileId = sourceString.fileId;
+		const { fileId } = sourceString;
 		if (filePaths.has(fileId) && !['UI', 'plugins'].includes(filePaths.get(fileId)!.substring(0, filePaths.get(fileId)!.indexOf('/')))) {
 			continue;
 		}
