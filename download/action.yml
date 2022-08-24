@@ -1,5 +1,0 @@
-name: Crowdin Sync Download
-description: Imports the newest translations from Crowdin.
-runs:
-  using: node16
-  main: dist.js

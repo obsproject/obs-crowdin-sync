@@ -1,4 +1,5 @@
 import { execSync } from 'child_process';
+import { JEST_RUN } from './index';
 
 /**
  * Waits a specific amount of milliseconds synchronously.
@@ -7,7 +8,7 @@ import { execSync } from 'child_process';
  * @returns Promise resolution after `millesec` milliseconds.
  */
 export function wait(millesec: number): Promise<void> {
-	if (process.env.JEST_WORKER_ID !== undefined) {
+	if (JEST_RUN) {
 		millesec = 0;
 	}
 	return new Promise(resolve => setTimeout(resolve, millesec));

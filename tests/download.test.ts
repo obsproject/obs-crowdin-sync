@@ -4,7 +4,7 @@ import PATH from 'path';
 import FSE from 'fs-extra';
 import * as ACTIONS from '@actions/core';
 
-import { PROJECT_ID } from '../src/constants';
+import { PROJECT_ID } from '../src/index';
 import {
 	getLanguages,
 	getFilePaths,

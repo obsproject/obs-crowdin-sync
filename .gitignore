@@ -1,5 +1,5 @@
-.vscode/
-node_modules/
-tests/temp/
-dist.js
-*/package.json
+/.vscode/
+/node_modules/
+/tests/temp/
+/dist/
+/dist.js

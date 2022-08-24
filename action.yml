@@ -1,0 +1,16 @@
+name: Crowdin Sync
+description: Synchronizes the OBS Studio repository and Crowdin project.
+runs:
+  using: node16
+  main: dist.js
+inputs:
+  PROJECT_ID:
+    description: The id of the Crowdin project.
+    required: true
+  MODE:
+    description: Either DOWNLOAD or UPLOAD.
+    required: true
+  SUBMODULE_NAME:
+    description: The repository name when used as a submodule upload action.
+  SKIP_PUSH:
+    description: Skips the translation push.
