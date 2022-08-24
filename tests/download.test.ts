@@ -2,15 +2,14 @@ import NOCK from 'nock';
 import ZIP from 'adm-zip';
 import PATH from 'path';
 import FSE from 'fs-extra';
-import * as ACTIONS from '@actions/core';
+import * as ACTION from '@actions/core';
 
 import { PROJECT_ID } from '../src/index';
 import {
 	getLanguages,
-	getFilePaths,
 	getTranslators,
+	getSourceFilePaths,
 	buildTranslations,
-	getSourceFiles,
 	processBuild,
 	createLocaleFile,
 	createDesktopFile,
@@ -98,7 +97,13 @@ beforeAll(async () => {
 	for (const file in previousFiles) {
 		await FSE.writeFile(file, previousFiles[file]);
 	}
-	await removePreviousTranslations();
+	await removePreviousTranslations([
+		'UI/data/locale',
+		'UI/frontend-plugins/frontend-tools/data/locale',
+		'plugins/enc-amf/resources/locale',
+		'plugins/mac-virtualcam/src/obs-plugin/data/locale',
+		'plugins/decklink/data/locale'
+	]);
 });
 
 it(getLanguages.name, async () => {
@@ -125,41 +130,6 @@ it(getLanguages.name, async () => {
 		]),
 		targetLanguageIds: ['de', 'fr']
 	});
-});
-
-it(getFilePaths.name, async () => {
-	scopeMain
-		.get('/files')
-		.query({ limit: MAX_API_PAGE_SIZE })
-		.reply(200, {
-			data: [
-				{
-					data: {
-						exportOptions: {
-							exportPattern: '/%file_name%/data/locale/%locale%.ini'
-						},
-						id: 29,
-						name: 'UI.ini'
-					}
-				},
-				{
-					data: {
-						exportOptions: {
-							exportPattern: '/%file_name%/%locale_with_underscore%.ini'
-						},
-						id: 718,
-						name: 'desktop-entry.ini'
-					}
-				}
-			]
-		});
-
-	expect(await getFilePaths()).toEqual(
-		new Map<number, string>([
-			[29, 'UI/data/locale'],
-			[718, 'desktop-entry']
-		])
-	);
 });
 
 it(getTranslators.name, async () => {
@@ -295,6 +265,34 @@ it(getTranslators.name, async () => {
 	expect(await getTranslators(['de', 'fr'])).toBe('Translators:\n French:\n  French Translator\n German:\n  First User\n  Last User\n');
 });
 
+it(getSourceFilePaths.name, async () => {
+	scopeMain
+		.get('/files')
+		.query({ limit: MAX_API_PAGE_SIZE })
+		.reply(200, {
+			data: [
+				{
+					data: {
+						name: 'UI.ini',
+						exportOptions: {
+							exportPattern: '/%file_name%/data/locale/%locale%.ini'
+						}
+					}
+				},
+				{
+					data: {
+						name: 'aja.ini',
+						exportOptions: {
+							exportPattern: '/plugins/%file_name%/data/locale/%locale%.ini'
+						}
+					}
+				}
+			]
+		});
+
+	expect(await getSourceFilePaths()).toEqual(['UI/data/locale', 'plugins/aja/data/locale']);
+});
+
 it(buildTranslations.name, async () => {
 	scopeMain
 		.get('/directories')
@@ -325,73 +323,6 @@ it(buildTranslations.name, async () => {
 	expect(await buildTranslations()).toBe(1);
 });
 
-it(getSourceFiles.name, async () => {
-	scopeMain
-		.get('/strings')
-		.query({ limit: MAX_API_PAGE_SIZE })
-		.reply(200, () => {
-			return {
-				data: [
-					{
-						data: {
-							fileId: 29,
-							identifier: 'Language',
-							text: 'English'
-						}
-					},
-					{
-						data: {
-							fileId: 20,
-							identifier: '# commonly shared locale',
-							text: ''
-						}
-					},
-					{
-						data: {
-							fileId: 29,
-							identifier: 'OK',
-							text: 'OK'
-						}
-					},
-					{
-						data: {
-							fileId: 120,
-							identifier: 'ColorFilter',
-							text: 'Color Correction'
-						}
-					},
-					{
-						data: {
-							fileId: 718,
-							identifier: 'GenericName',
-							text: 'Streaming/Recording Software'
-						}
-					}
-				]
-			};
-		});
-
-	expect(
-		await getSourceFiles(
-			new Map<number, string>([
-				[29, 'UI/data/locale'],
-				[718, 'desktop-entry']
-			])
-		)
-	).toEqual(
-		new Map<number, Map<string, string>>([
-			[
-				29,
-				new Map<string, string>([
-					['Language', 'English'],
-					['OK', 'OK']
-				])
-			],
-			[20, new Map<string, string>([['# commonly shared locale', '']])]
-		])
-	);
-});
-
 it(processBuild.name, async () => {
 	scopeMain.get('/translations/builds/1/download').reply(200, {
 		data: {
@@ -400,22 +331,8 @@ it(processBuild.name, async () => {
 	});
 	scopeDownloads.get('/builds/1').replyWithFile(200, '../Build.zip');
 
-	const noticeMock = jest.spyOn(ACTIONS, 'notice').mockImplementation(() => {});
-	expect(
-		await processBuild(
-			1,
-			new Map<number, Map<string, string>>([
-				[
-					29,
-					new Map<string, string>([
-						['Language', 'English'],
-						['OK', 'OK']
-					])
-				]
-			]),
-			new Map<number, string>([[29, 'UI/data/locale']])
-		)
-	).toEqual({
+	const noticeMock = jest.spyOn(ACTION, 'notice').mockImplementation(() => {});
+	expect(await processBuild(1)).toEqual({
 		desktopFileTranslations: new Map<string, Map<string, string>>([
 			[
 				'de_DE',
@@ -452,7 +369,7 @@ it(processBuild.name, async () => {
 							},
 							{
 								name: 'en-GB.ini',
-								content: 'Language="English (UK)"\n'
+								content: 'Language="English (UK)"\nOK="OK"\n'
 							},
 							{
 								name: 'en-US.ini',
