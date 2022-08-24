@@ -4,18 +4,16 @@
 		"es2020": true,
 		"jest": true
 	},
-	"extends": ["plugin:jsdoc/recommended", "plugin:prettier/recommended"],
+	"extends": ["plugin:prettier/recommended"],
 	"parser": "@typescript-eslint/parser",
 	"parserOptions": {
 		"sourceType": "module"
 	},
-	"plugins": ["@typescript-eslint", "jsdoc", "only-warn"],
+	"plugins": ["@typescript-eslint", "only-warn"],
 	"rules": {
 		"indent": ["warn", "tab", { "SwitchCase": 1 }],
 		"no-tabs": "off",
 		"semi": "off",
-		"space-before-function-paren": "off",
-		"jsdoc/require-param-type": "off",
-		"jsdoc/require-returns-type": "off"
+		"space-before-function-paren": "off"
 	}
 }

@@ -16,12 +16,6 @@ import {
 	removePreviousTranslations
 } from '../src/download';
 
-/**
- * Converts a directoy structure with all sub-files into one object.
- *
- * @param filePath The path to the file or directory.
- * @returns An object representing a directory structure.
- */
 async function convertFileStructureToObject(filePath: string): Promise<{}> {
 	filePath = PATH.resolve(filePath);
 	if (!(await FSE.pathExists(filePath))) {

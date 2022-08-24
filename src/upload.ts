@@ -10,11 +10,6 @@ const { sourceFilesApi, uploadStorageApi } = new CROWDIN({
 	token: process.env.CROWDIN_PAT || ''
 });
 
-/**
- * Uses `git diff` to get the files changed by the commits.
- *
- * @returns List of files changed by the commits.
- */
 function getChangedFiles(): string[] {
 	if (exec(`git log --format=%B ${process.env.GITHUB_EVENT_BEFORE}..${process.env.GITHUB_SHA}`).includes('[skip crowdin-sync]')) {
 		ACTION.info('Found [skip crowdin-sync] in at least one commit message. Skipping action.');
@@ -23,11 +18,6 @@ function getChangedFiles(): string[] {
 	return normalize(exec(`git diff --name-only ${process.env.GITHUB_EVENT_BEFORE}..${process.env.GITHUB_SHA}`)).split('\n');
 }
 
-/**
- * Uploads updated English source files to Crowdin.
- *
- * @param changedFiles Files changed by the commits.
- */
 export async function upload(changedFiles: string[]): Promise<void> {
 	const crowdinFilePaths = new Map<string, number>();
 	for (const { data: crowdinFile } of (await sourceFilesApi.withFetchAll().listProjectFiles(PROJECT_ID)).data) {
@@ -84,9 +74,6 @@ export async function upload(changedFiles: string[]): Promise<void> {
 	}
 }
 
-/**
- * Executes the Upload action.
- */
 export async function execute() {
 	await upload(getChangedFiles());
 }
