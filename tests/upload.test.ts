@@ -22,6 +22,28 @@ it(`${upload.name} (main repo)`, async () => {
 	});
 
 	scopeMain
+		.get('/directories')
+		.query({ filter: 'Plugins' })
+		.reply(200, {
+			data: [
+				{
+					data: {
+						id: 28
+					}
+				}
+			]
+		})
+		.get('/directories')
+		.query({ filter: 'Frontend' })
+		.reply(200, {
+			data: [
+				{
+					data: {
+						id: 136
+					}
+				}
+			]
+		})
 		.get('/files')
 		.query({ limit: MAX_API_PAGE_SIZE })
 		.reply(200, {
