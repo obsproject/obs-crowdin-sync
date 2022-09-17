@@ -18,14 +18,14 @@ function getChangedFiles(): string[] {
 	return normalize(exec(`git diff --name-only ${process.env.GITHUB_EVENT_BEFORE}..${process.env.GITHUB_SHA}`)).split('\n');
 }
 
-export async function upload(changedFiles: string[]): Promise<void> {
-	const crowdinFilePaths = new Map<string, number>();
+export async function upload(changedFiles: string[], submoduleName?: string): Promise<void> {
+	const crowdinFileIdMap = new Map<string, number>(); // <file export path, file id>
 	for (const { data: crowdinFile } of (await sourceFilesApi.withFetchAll().listProjectFiles(PROJECT_ID)).data) {
 		const exportOptions = crowdinFile.exportOptions;
 		if (!exportOptions) {
 			continue;
 		}
-		crowdinFilePaths.set(
+		crowdinFileIdMap.set(
 			exportOptions.exportPattern
 				.substring(1)
 				.replace('%file_name%', PATH.parse(crowdinFile.name).name)
@@ -33,41 +33,59 @@ export async function upload(changedFiles: string[]): Promise<void> {
 			crowdinFile.id
 		);
 	}
+
 	for (const filePath of changedFiles) {
 		if (!filePath.endsWith(`/${STRINGS.englishLanguage.locale}.ini`)) {
 			continue;
 		}
+		async function uploadToStorage() {
+			return (await uploadStorageApi.addStorage('File.ini', await FSE.readFile(filePath))).data.id;
+		}
+		async function updateSourceFile(fileId: number) {
+			await sourceFilesApi.updateOrRestoreFile(PROJECT_ID, fileId, {
+				storageId: await uploadToStorage()
+			});
+			ACTION.notice(`${filePath} updated on Crowdin.`);
+		}
 
-		const crowdinFileId = crowdinFilePaths.get(filePath)!;
+		if (submoduleName && filePath === `data/locale/${STRINGS.englishLanguage.locale}.ini`) {
+			const submoduleExportPath = `plugins/${submoduleName}/data/locale/en-US.ini`;
+			if (crowdinFileIdMap.has(submoduleExportPath)) {
+				await updateSourceFile(crowdinFileIdMap.get(submoduleExportPath)!);
+			} else {
+				throw `For some reason ${submoduleExportPath} was not found on Crowdin.`;
+			}
+			break;
+		}
+
+		const crowdinFileId = crowdinFileIdMap.get(filePath)!;
 		if (!(await FSE.pathExists(filePath))) {
 			await sourceFilesApi.deleteFile(PROJECT_ID, crowdinFileId);
 			ACTION.notice(`${filePath} removed from Crowdin.`);
 			continue;
 		}
 
-		const storageId = async () => (await uploadStorageApi.addStorage('File.ini', await FSE.readFile(filePath))).data.id;
 		const pathParts = filePath.split('/');
-		if (crowdinFilePaths.has(filePath)) {
-			await sourceFilesApi.updateOrRestoreFile(PROJECT_ID, crowdinFileId, { storageId: await storageId() });
-			ACTION.notice(`${filePath} updated on Crowdin.`);
+		if (crowdinFileIdMap.has(filePath)) {
+			await updateSourceFile(crowdinFileId);
 			continue;
 		}
 		if (/^plugins\/.*\/data\/locale$/.test(PATH.parse(filePath).dir)) {
 			await sourceFilesApi.createFile(PROJECT_ID, {
 				name: `${pathParts[1]}.ini`,
-				storageId: await storageId(),
+				storageId: await uploadToStorage(),
 				directoryId: 28,
 				exportOptions: { exportPattern: '/plugins/%file_name%/data/locale/%locale%.ini' }
 			});
 		} else if (/^UI\/frontend-plugins\/.*\/data\/locale$/.test(PATH.parse(filePath).dir)) {
 			await sourceFilesApi.createFile(PROJECT_ID, {
 				name: `${pathParts[2]}.ini`,
-				storageId: await storageId(),
+				storageId: await uploadToStorage(),
 				directoryId: 136,
 				exportOptions: { exportPattern: '/UI/frontend-plugins/%file_name%/data/locale/%locale%.ini' }
 			});
 		} else {
-			ACTION.error(`${filePath} not uploaded to Crowdin due to its unexpected location. This may be intended.`);
+			ACTION.error(`${filePath} not uploaded to Crowdin due to its unexpected location. This may be correct.`);
 			continue;
 		}
 		ACTION.notice(`${filePath} uploaded to Crowdin.`);
@@ -75,5 +93,5 @@ export async function upload(changedFiles: string[]): Promise<void> {
 }
 
 export async function execute() {
-	await upload(getChangedFiles());
+	await upload(getChangedFiles(), ACTION.getInput('SUBMODULE_NAME'));
 }

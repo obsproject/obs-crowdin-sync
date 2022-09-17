@@ -1,3 +1,4 @@
+import MOCK_FS from 'mock-fs';
 import NOCK from 'nock';
 import ZIP from 'adm-zip';
 import PATH from 'path';
@@ -46,58 +47,42 @@ async function convertFileStructureToObject(filePath: string): Promise<{}> {
 	}
 }
 
+const noticeMock = jest.spyOn(ACTION, 'notice').mockImplementation(() => {});
 const scopeMain = NOCK(`https://api.crowdin.com/api/v2/projects/${PROJECT_ID}`);
 const scopeDownloads = NOCK('https://downloads.net');
 const MAX_API_PAGE_SIZE = 500;
+const BASE_NAME = PATH.basename(PATH.resolve('.'));
 
-beforeAll(async () => {
-	const rootDir = 'tests/temp/download';
-	if (await FSE.pathExists(rootDir)) {
-		await FSE.rm(rootDir, { recursive: true });
-	}
-	await FSE.mkdir(`${rootDir}/translations`, { recursive: true });
-	process.chdir(`${rootDir}/translations`);
-	const crowdinBuildFiles: Record<string, string> = {
-		'UI/data/locale/de-DE.ini': '\nLanguage="Deutsch"\nOK="Okay"\n\nApply="Übernehmen"\nCancel="Abbre\nchen"\n\n',
-		'UI/data/locale/fr-FR.ini': 'abc="123"',
-		'UI/data/locale/en-GB.ini': 'Language="English (UK)"\nOK="OK"',
-		'UI/data/locale/bem-ZM.ini': '\n\n\n\n\n\n',
-		'UI/frontend-plugins/frontend-tools/data/locale/de-DE.ini': 'abc="123"',
-		'plugins/enc-amf/resources/locale/de-DE.ini': 'abc="123"',
-		'plugins/mac-virtualcam/src/obs-plugin/data/locale/de-DE.ini': 'abc="123"',
-		'plugins/decklink/data/locale/de-DE.ini': 'abc="123"',
-		'desktop-entry/en_GB.ini': 'GenericName="enName"\nComment="enComment"',
-		'desktop-entry/de_DE.ini': 'GenericName="deName"\nComment="deComment"\n\n',
-		'plugins/missing/data/locale/de-DE.ini': 'Content',
-		'plugins/missing/data/locale/fr-FR.ini': 'Content',
-		'unexpectedDir/somefile.ini': 'Unexpected'
-	};
-	const buildArchive = new ZIP();
-	for (const file in crowdinBuildFiles) {
-		buildArchive.addFile(file, Buffer.from(crowdinBuildFiles[file]));
-		const dir = PATH.parse(file).dir;
-		if (dir.startsWith('UI') || (dir.startsWith('plugins') && !dir.startsWith('plugins/missing/data/locale'))) {
-			await FSE.mkdir(dir, { recursive: true });
-		}
-	}
-	await buildArchive.writeZipPromise('../Build.zip');
-
-	const previousFiles: Record<string, string> = {
+it(removePreviousTranslations.name, async () => {
+	MOCK_FS({
 		'UI/data/locale/an-ES.ini': 'previous',
 		'UI/data/locale/en-US.ini': 'source file',
-		'UI/frontend-plugins/frontend-tools/data/locale/an-ES.ini': 'previous',
-		'plugins/decklink/data/locale/an-ES.ini': 'previous'
-	};
-	for (const file in previousFiles) {
-		await FSE.writeFile(file, previousFiles[file]);
-	}
-	await removePreviousTranslations([
-		'UI/data/locale',
-		'UI/frontend-plugins/frontend-tools/data/locale',
-		'plugins/enc-amf/resources/locale',
-		'plugins/mac-virtualcam/src/obs-plugin/data/locale',
-		'plugins/decklink/data/locale'
-	]);
+		'plugins/decklink/data/locale/an-ES.ini': 'previous',
+		'plugins/another/data/locale/an-ES.ini': 'previous'
+	});
+	await removePreviousTranslations(['UI/data/locale', 'plugins/another/data/locale']);
+	expect(await convertFileStructureToObject('.')).toEqual({
+		name: BASE_NAME,
+		content: [
+			{
+				name: 'UI/data/locale/en-US.ini',
+				content: 'source file'
+			},
+			{
+				name: 'plugins',
+				content: [
+					{
+						name: 'another/data/locale',
+						content: []
+					},
+					{
+						name: 'decklink/data/locale/an-ES.ini',
+						content: 'previous'
+					}
+				]
+			}
+		]
+	});
 });
 
 it(getLanguages.name, async () => {
@@ -318,6 +303,36 @@ it(buildTranslations.name, async () => {
 });
 
 it(processBuild.name, async () => {
+	MOCK_FS({
+		'UI/data/locale': {
+			'en-US.ini': 'source file'
+		},
+		'UI/frontend-plugins/frontend-tools/data/locale': {},
+		'plugins/enc-amf/resources/locale': {},
+		'plugins/mac-virtualcam/src/obs-plugin/data/locale': {},
+		'plugins/decklink/data/locale': {}
+	});
+	const crowdinBuildFiles: Record<string, string> = {
+		'UI/data/locale/de-DE.ini': '\nLanguage="Deutsch"\nOK="Okay"\n\nApply="Übernehmen"\nCancel="Abbre\nchen"\n\n',
+		'UI/data/locale/fr-FR.ini': 'abc="123"',
+		'UI/data/locale/en-GB.ini': 'Language="English (UK)"\nOK="OK"',
+		'UI/data/locale/bem-ZM.ini': '\n\n\n\n\n\n',
+		'UI/frontend-plugins/frontend-tools/data/locale/de-DE.ini': 'abc="123"',
+		'plugins/enc-amf/resources/locale/de-DE.ini': 'abc="123"',
+		'plugins/mac-virtualcam/src/obs-plugin/data/locale/de-DE.ini': 'abc="123"',
+		'plugins/decklink/data/locale/de-DE.ini': 'abc="123"',
+		'desktop-entry/en_GB.ini': 'GenericName="enName"\nComment="enComment"',
+		'desktop-entry/de_DE.ini': 'GenericName="deName"\nComment="deComment"\n\n',
+		'plugins/missing/data/locale/de-DE.ini': 'Content',
+		'plugins/missing/data/locale/fr-FR.ini': 'Content',
+		'unexpectedDir/somefile.ini': 'Unexpected'
+	};
+	const buildArchive = new ZIP();
+	for (const file in crowdinBuildFiles) {
+		buildArchive.addFile(file, Buffer.from(crowdinBuildFiles[file]));
+	}
+	await buildArchive.writeZipPromise('../Build.zip');
+
 	scopeMain.get('/translations/builds/1/download').reply(200, {
 		data: {
 			url: 'https://downloads.net/builds/1'
@@ -325,7 +340,6 @@ it(processBuild.name, async () => {
 	});
 	scopeDownloads.get('/builds/1').replyWithFile(200, '../Build.zip');
 
-	const noticeMock = jest.spyOn(ACTION, 'notice').mockImplementation(() => {});
 	expect(await processBuild(1)).toEqual({
 		desktopFileTranslations: new Map<string, Map<string, string>>([
 			[
@@ -349,7 +363,7 @@ it(processBuild.name, async () => {
 		])
 	});
 	expect(await convertFileStructureToObject('.')).toEqual({
-		name: PATH.basename(PATH.resolve('.')),
+		name: BASE_NAME,
 		content: [
 			{
 				name: 'UI',
@@ -436,8 +450,7 @@ it(createLocaleFile.name, async () => {
 			]
 		});
 
-	const languageListPath = 'UI/data/locale.ini';
-	await FSE.writeFile(languageListPath, '[ab-cd]\nName=LanguageName\n[de-DE]\nName=Deutsch\n[fr-FR]\nName=Français\n\n');
+	MOCK_FS({ 'UI/data/locale.ini': '[ab-cd]\nName=LanguageName\n[de-DE]\nName=Deutsch\n[fr-FR]\nName=Français\n\n' });
 	await createLocaleFile(
 		new Map<string, string>([
 			['de-DE', 'Deutsch'],
@@ -452,13 +465,16 @@ it(createLocaleFile.name, async () => {
 			['da-DK', 'da']
 		])
 	);
-	expect(await FSE.readFile(languageListPath, 'utf-8')).toBe('[da-DK]\nName=Dansk\n\n[en-US]\nName=English\n\n[fr-FR]\nName=Français\n');
+	expect(await FSE.readFile('UI/data/locale.ini', 'utf-8')).toBe(
+		'[da-DK]\nName=Dansk\n\n[en-US]\nName=English\n\n[fr-FR]\nName=Français\n'
+	);
 });
 
 it(createDesktopFile.name, async () => {
-	const filePath = 'UI/xdg-data/com.obsproject.Studio.desktop';
-	await FSE.mkdir(PATH.parse(filePath).dir);
-	await FSE.writeFile(filePath, '[Desktop Entry]\nVersion=1.0\nName=OBS Studio\n\nGenericName[an_ES]=abc\nComment[an_ES]=abc\n');
+	MOCK_FS({
+		'UI/xdg-data/com.obsproject.Studio.desktop':
+			'[Desktop Entry]\nVersion=1.0\nName=OBS Studio\n\nGenericName[an_ES]=abc\nComment[an_ES]=abc\n'
+	});
 	await createDesktopFile(
 		new Map<string, Map<string, string>>([
 			[
@@ -477,9 +493,13 @@ it(createDesktopFile.name, async () => {
 			]
 		])
 	);
-	expect(await FSE.readFile(filePath, 'utf-8')).toBe(
+	expect(await FSE.readFile('UI/xdg-data/com.obsproject.Studio.desktop', 'utf-8')).toBe(
 		'[Desktop Entry]\nVersion=1.0\nName=OBS Studio\n\nGenericName[de_DE]=deName\nComment[de_DE]=deComment\nGenericName[en_GB]=enName\nComment[en_GB]=enComment\n'
 	);
+});
+
+afterEach(() => {
+	MOCK_FS.restore();
 });
 
 afterAll(() => {

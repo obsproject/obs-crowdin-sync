@@ -1,5 +1,4 @@
 /.vscode/
 /node_modules/
-/tests/temp/
 /dist/
 /dist.js
