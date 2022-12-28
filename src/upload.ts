@@ -29,6 +29,10 @@ function getChangedFiles(): string[] {
 	return normalize(exec(`git diff --name-only ${process.env.GITHUB_EVENT_BEFORE}..${process.env.GITHUB_SHA}`)).split('\n');
 }
 
+async function getDirId(name: string): Promise<number> {
+	return (await sourceFilesApi.listProjectDirectories(PROJECT_ID, { filter: name })).data[0].data.id;
+}
+
 /**
  * Uploads updated English source files to Crowdin.
  *
@@ -72,14 +76,14 @@ export async function upload(changedFiles: string[]): Promise<void> {
 			await sourceFilesApi.createFile(PROJECT_ID, {
 				name: `${pathParts[1]}.ini`,
 				storageId: await storageId(),
-				directoryId: 28,
+				directoryId: await getDirId('Plugins'),
 				exportOptions: { exportPattern: '/plugins/%file_name%/data/locale/%locale%.ini' }
 			});
 		} else if (/^UI\/frontend-plugins\/.*\/data\/locale$/.test(PATH.parse(filePath).dir)) {
 			await sourceFilesApi.createFile(PROJECT_ID, {
 				name: `${pathParts[2]}.ini`,
 				storageId: await storageId(),
-				directoryId: 136,
+				directoryId: await getDirId('Frontend'),
 				exportOptions: { exportPattern: '/UI/frontend-plugins/%file_name%/data/locale/%locale%.ini' }
 			});
 		} else {
