@@ -1,6 +1,5 @@
+import MOCK_FS from 'mock-fs';
 import NOCK from 'nock';
-import FSE from 'fs-extra';
-import PATH from 'path';
 import * as ACTIONS from '@actions/core';
 
 import { upload } from '../src/upload';
@@ -10,26 +9,17 @@ const scopeMain = NOCK(`https://api.crowdin.com/api/v2/projects/${PROJECT_ID}`);
 const scopeStorages = NOCK('https://api.crowdin.com/api/v2/storages');
 const MAX_API_PAGE_SIZE = 500;
 
-beforeAll(async () => {
-	const rootDir = 'tests/temp/upload';
-	if (await FSE.pathExists(rootDir)) {
-		await FSE.rm(rootDir, { recursive: true });
-	}
-	await FSE.mkdir(rootDir, { recursive: true });
-	process.chdir(rootDir);
-	for (const [filePath, content] of Object.entries({
+const noticeMock = jest.spyOn(ACTIONS, 'notice').mockImplementation(() => {});
+
+it(`${upload.name} (main repo)`, async () => {
+	MOCK_FS({
 		'UI/data/locale/en-US.ini': '\n# Comment"\nYes="Yes"\nCancel="Cancel"\n',
 		'UI/frontend-plugins/some-frontend/data/locale/en-US.ini': 'MyFrontendString="Text"',
 		'plugins/sndio/data/locale/en-US.ini': 'Device="Device"\nRate="Rate"\n',
 		'plugins/my-plugin/data/locale/en-US.ini': 'MyPluginString="Text"',
 		'plugins/data/locale/en-US.ini': '123'
-	})) {
-		await FSE.mkdir(PATH.parse(filePath).dir, { recursive: true });
-		await FSE.writeFile(filePath, content);
-	}
-});
+	});
 
-it(upload.name, async () => {
 	scopeMain
 		.get('/directories')
 		.query({ filter: 'Plugins' })
@@ -140,6 +130,44 @@ it(upload.name, async () => {
 	expect(errorMock).toBeCalledWith(
 		'plugins/data/locale/en-US.ini not uploaded to Crowdin due to its unexpected location. This may be intended.'
 	);
+});
+
+it(`${upload.name} (submodule)`, async () => {
+	MOCK_FS({ 'data/locale/en-US.ini': 'String="MyString"\n' });
+
+	scopeMain
+		.get('/files')
+		.query({ limit: MAX_API_PAGE_SIZE })
+		.reply(200, {
+			data: [
+				{
+					data: {
+						exportOptions: {
+							exportPattern: '/plugins/%file_name%/data/locale/%locale%.ini'
+						},
+						id: 123,
+						name: 'my-plugin.ini'
+					}
+				}
+			]
+		})
+		.put('/files/123', {
+			storageId: 1
+		})
+		.reply(200);
+	scopeStorages.post('', 'String="MyString"\n').reply(201, {
+		data: {
+			id: 1
+		}
+	});
+
+	await upload(['data/locale/en-US.ini'], 'my-plugin');
+
+	expect(noticeMock).toBeCalledWith('data/locale/en-US.ini updated on Crowdin.');
+});
+
+afterEach(() => {
+	MOCK_FS.restore();
 });
 
 afterAll(() => {
