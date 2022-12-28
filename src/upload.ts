@@ -33,19 +33,29 @@ async function getDirId(name: string): Promise<number> {
 	return (await sourceFilesApi.listProjectDirectories(PROJECT_ID, { filter: name })).data[0].data.id;
 }
 
+async function updateSourceFile(fileId: number, filePath: string) {
+	const storageId = (await uploadStorageApi.addStorage('File.ini', await FSE.readFile(filePath))).data.id;
+
+	await sourceFilesApi.updateOrRestoreFile(PROJECT_ID, fileId, {
+		storageId
+	});
+	ACTIONS.notice(`${filePath} updated on Crowdin.`);
+}
+
 /**
  * Uploads updated English source files to Crowdin.
  *
  * @param changedFiles Files changed by the commits.
  */
-export async function upload(changedFiles: string[]): Promise<void> {
-	const crowdinFilePaths = new Map<string, number>();
+export async function upload(changedFiles: string[], submoduleName?: string): Promise<void> {
+	const crowdinFileIdMap = new Map<string, number>(); // <file export path, file id>
 	for (const { data: crowdinFile } of (await sourceFilesApi.withFetchAll().listProjectFiles(PROJECT_ID)).data) {
 		const exportOptions = crowdinFile.exportOptions;
 		if (!exportOptions) {
 			continue;
 		}
-		crowdinFilePaths.set(
+
+		crowdinFileIdMap.set(
 			exportOptions.exportPattern
 				.substring(1)
 				.replace('%file_name%', PATH.parse(crowdinFile.name).name)
@@ -53,12 +63,23 @@ export async function upload(changedFiles: string[]): Promise<void> {
 			crowdinFile.id
 		);
 	}
+
 	for (const filePath of changedFiles) {
 		if (!filePath.endsWith(`/${STRINGS.englishLanguage.locale}.ini`)) {
 			continue;
 		}
 
-		const crowdinFileId = crowdinFilePaths.get(filePath)!;
+		if (submoduleName && filePath === `data/locale/${STRINGS.englishLanguage.locale}.ini`) {
+			const submoduleExportPath = `plugins/${submoduleName}/data/locale/en-US.ini`;
+			if (crowdinFileIdMap.has(submoduleExportPath)) {
+				await updateSourceFile(crowdinFileIdMap.get(submoduleExportPath)!, filePath);
+			} else {
+				throw `For some reason ${submoduleExportPath} was not found on Crowdin.`;
+			}
+			break;
+		}
+
+		const crowdinFileId = crowdinFileIdMap.get(filePath)!;
 		if (!(await FSE.pathExists(filePath))) {
 			await sourceFilesApi.deleteFile(PROJECT_ID, crowdinFileId);
 			ACTIONS.notice(`${filePath} removed from Crowdin.`);
@@ -67,9 +88,8 @@ export async function upload(changedFiles: string[]): Promise<void> {
 
 		const storageId = async () => (await uploadStorageApi.addStorage('File.ini', await FSE.readFile(filePath))).data.id;
 		const pathParts = filePath.split('/');
-		if (crowdinFilePaths.has(filePath)) {
-			await sourceFilesApi.updateOrRestoreFile(PROJECT_ID, crowdinFileId, { storageId: await storageId() });
-			ACTIONS.notice(`${filePath} updated on Crowdin.`);
+		if (crowdinFileIdMap.has(filePath)) {
+			await updateSourceFile(crowdinFileId, filePath);
 			continue;
 		}
 		if (/^plugins\/.*\/data\/locale$/.test(PATH.parse(filePath).dir)) {
@@ -99,7 +119,7 @@ export async function upload(changedFiles: string[]): Promise<void> {
 		return;
 	}
 	try {
-		await upload(getChangedFiles());
+		await upload(getChangedFiles(), process.env.SUBMODULE_NAME);
 	} catch (e) {
 		ACTIONS.setFailed(e as Error);
 	}
