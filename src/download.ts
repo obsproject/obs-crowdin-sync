@@ -20,22 +20,6 @@ const { reportsApi, translationsApi, usersApi, projectsGroupsApi, sourceFilesApi
 });
 
 /**
- * Clears a directory excluding the default language files.
- *
- * @param dirPath Directory to clear.
- */
-async function emptyTranslationDir(dirPath: string): Promise<void> {
-	if (!(await FSE.pathExists(dirPath))) {
-		return;
-	}
-	for (const file of await FSE.readdir(dirPath)) {
-		if (file !== `${STRINGS.englishLanguage.locale}.ini`) {
-			await FSE.remove(`${dirPath}/${file}`);
-		}
-	}
-}
-
-/**
  * Retrieves submodules with translatable files.
  *
  * @returns A list of submodules with translataable files.
@@ -54,20 +38,23 @@ async function getSubmodules(): Promise<string[]> {
 	return submodules;
 }
 
-/**
- * Remove all translations to prevent keeping dropped languages.
- */
-export async function removePreviousTranslations(): Promise<void> {
-	await Promise.all([
-		emptyTranslationDir('UI/data/locale'),
-		emptyTranslationDir('plugins/enc-amf/resources/locale'),
-		emptyTranslationDir('plugins/mac-virtualcam/src/obs-plugin/data/locale')
-	]);
+export async function removePreviousTranslations(sourceFilePaths: string[]): Promise<void> {
+	let pathsToClear: string[] = ['UI/data/locale', 'plugins/enc-amf/resources/locale', 'plugins/mac-virtualcam/src/obs-plugin/data/locale'];
 	for (const pluginRootDir of ['plugins', 'UI/frontend-plugins']) {
+		if (!(await FSE.pathExists(pluginRootDir))) {
+			continue;
+		}
 		for (const pluginDir of await FSE.readdir(pluginRootDir)) {
-			const pluginLocalePath = `${pluginRootDir}/${pluginDir}/data/locale`;
-			if ((await FSE.pathExists(pluginLocalePath)) && (await FSE.lstat(pluginLocalePath)).isDirectory()) {
-				await emptyTranslationDir(pluginLocalePath);
+			pathsToClear.push(`${pluginRootDir}/${pluginDir}/data/locale`);
+		}
+	}
+	for (const path of pathsToClear) {
+		if (!(await FSE.pathExists(path))) {
+			continue;
+		}
+		for (const file of await FSE.readdir(path)) {
+			if (file !== `${STRINGS.englishLanguage.locale}.ini` && sourceFilePaths.includes(path)) {
+				await FSE.remove(`${path}/${file}`);
 			}
 		}
 	}
@@ -495,7 +482,7 @@ function pushChanges(detachedSubmodules: string[], submodules: string[]): void {
 		return;
 	}
 	try {
-		await removePreviousTranslations();
+		await removePreviousTranslations(Array.from((await getFilePaths()).values()));
 		const submodules = await getSubmodules();
 		const results = [];
 		results[0] = await Promise.all([getDetachedSubmodules(submodules), getFilePaths(), buildTranslations(), getLanguages()]);
