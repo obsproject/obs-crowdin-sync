@@ -341,7 +341,7 @@ export async function processBuild(
 				}
 			}
 			if (translationContent.length === 0) {
-				continue;
+				translationContent = '#';
 			}
 		} else {
 			translationContent = `${fileContent}\n`;

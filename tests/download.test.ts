@@ -398,6 +398,7 @@ it(processBuild.name, async () => {
 		'UI/data/locale/de-DE.ini': '\nLanguage="Deutsch"\nOK="Okay"\n\nApply="Übernehmen"\nCancel="Abbre\nchen"\n\n',
 		'UI/data/locale/fr-FR.ini': 'abc="123"',
 		'UI/data/locale/en-GB.ini': 'Language="English (UK)"\nOK="OK"',
+		'UI/data/locale/em-pty.ini': 'OK="OK"',
 		'UI/data/locale/bem-ZM.ini': '\n\n\n\n\n\n',
 		'UI/frontend-plugins/frontend-tools/data/locale/de-DE.ini': 'abc="123"',
 		'plugins/enc-amf/resources/locale/de-DE.ini': 'abc="123"',
@@ -470,6 +471,10 @@ it(processBuild.name, async () => {
 							{
 								name: 'de-DE.ini',
 								content: 'Language="Deutsch"\nOK="Okay"\nApply="Übernehmen"\nCancel="Abbre\\nchen"\n'
+							},
+							{
+								name: 'em-pty.ini',
+								content: '#'
 							},
 							{
 								name: 'en-GB.ini',
