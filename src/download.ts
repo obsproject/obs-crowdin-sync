@@ -30,7 +30,7 @@ async function getSubmodules(): Promise<string[]> {
 		const submodulePath = line.split(' ')[1];
 		if (
 			(await FSE.pathExists(`${submodulePath}/data/locale/en-US.ini`)) ||
-			(submodulePath === 'plugins/enc-amf' && FSE.pathExists('plugins/enc-amf/resources/locale/en-US.ini'))
+			(submodulePath === 'plugins/enc-amf' && (await FSE.pathExists('plugins/enc-amf/resources/locale/en-US.ini')))
 		) {
 			submodules.push(submodulePath.split('/')[1]);
 		}
