@@ -390,7 +390,6 @@ it(processBuild.name, async () => {
 			'en-US.ini': 'source file'
 		},
 		'UI/frontend-plugins/frontend-tools/data/locale': {},
-		'plugins/enc-amf/resources/locale': {},
 		'plugins/mac-virtualcam/src/obs-plugin/data/locale': {},
 		'plugins/decklink/data/locale': {}
 	});
@@ -401,7 +400,6 @@ it(processBuild.name, async () => {
 		'UI/data/locale/em-pty.ini': 'OK="OK"',
 		'UI/data/locale/bem-ZM.ini': '\n\n\n\n\n\n',
 		'UI/frontend-plugins/frontend-tools/data/locale/de-DE.ini': 'abc="123"',
-		'plugins/enc-amf/resources/locale/de-DE.ini': 'abc="123"',
 		'plugins/mac-virtualcam/src/obs-plugin/data/locale/de-DE.ini': 'abc="123"',
 		'plugins/decklink/data/locale/de-DE.ini': 'abc="123"',
 		'desktop-entry/en_GB.ini': 'GenericName="enName"\nComment="enComment"',
@@ -501,10 +499,6 @@ it(processBuild.name, async () => {
 				content: [
 					{
 						name: 'decklink/data/locale/de-DE.ini',
-						content: 'abc="123"\n'
-					},
-					{
-						name: 'enc-amf/resources/locale/de-DE.ini',
 						content: 'abc="123"\n'
 					},
 					{
