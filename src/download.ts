@@ -28,10 +28,7 @@ async function getSubmodules(): Promise<string[]> {
 	const submodules = [];
 	for (const line of exec('git config --file .gitmodules --get-regexp path').trimEnd().split('\n')) {
 		const submodulePath = line.split(' ')[1];
-		if (
-			(await FSE.pathExists(`${submodulePath}/data/locale/en-US.ini`)) ||
-			(submodulePath === 'plugins/enc-amf' && (await FSE.pathExists('plugins/enc-amf/resources/locale/en-US.ini')))
-		) {
+		if (await FSE.pathExists(`${submodulePath}/data/locale/en-US.ini`)) {
 			submodules.push(submodulePath.split('/')[1]);
 		}
 	}
@@ -39,7 +36,7 @@ async function getSubmodules(): Promise<string[]> {
 }
 
 export async function removePreviousTranslations(sourceFilePaths: string[]): Promise<void> {
-	let pathsToClear: string[] = ['UI/data/locale', 'plugins/enc-amf/resources/locale', 'plugins/mac-virtualcam/src/obs-plugin/data/locale'];
+	let pathsToClear: string[] = ['UI/data/locale', 'plugins/mac-virtualcam/src/obs-plugin/data/locale'];
 	for (const pluginRootDir of ['plugins', 'UI/frontend-plugins']) {
 		if (!(await FSE.pathExists(pluginRootDir))) {
 			continue;
@@ -445,7 +442,7 @@ function pushChanges(detachedSubmodules: string[], submodules: string[]): void {
 			process.chdir('../..');
 			continue;
 		}
-		exec(`git add '${submodule === 'enc-amf' ? 'resources/locale/*-*.ini' : 'data/locale/*-*.ini'}'`);
+		exec('git add data/locale/*-*.ini');
 		exec(`git commit -m '${STRINGS.git.commitTitle}'`);
 		exec('git push');
 		process.chdir('../..');
