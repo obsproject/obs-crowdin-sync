@@ -150,8 +150,6 @@ function getGitContributors(): string {
 	return output;
 }
 
-const requestLimit = PLIMIT(10);
-
 /**
  * Gets all translators from the Crowdin project.
  *
@@ -168,36 +166,27 @@ export async function getTranslators(targetLanguageIds: string[]): Promise<strin
 		blockedUsers.push(blockedUser.id);
 	}
 
-	const requests = [];
-	for (const languageId of targetLanguageIds) {
-		requests.push(
-			requestLimit(() =>
-				(async () => {
-					const { status: reportStatus, identifier: reportId } = (
-						await reportsApi.generateReport(PROJECT_ID, {
-							name: 'top-members',
-							schema: {
-								unit: 'words',
-								format: 'json',
-								dateFrom: '2014-01-01T00:00:00+00:00',
-								dateTo: '2030-01-01T00:00:00+00:00',
-								languageId
-							}
-						})
-					).data;
-					let finished = reportStatus === 'finished';
-					while (!finished) {
-						await wait(3000);
-						finished = (await reportsApi.checkReportStatus(PROJECT_ID, reportId)).data.status === 'finished';
-					}
-					return (await AXIOS.get((await reportsApi.downloadReport(PROJECT_ID, reportId)).data.url)).data;
-				})()
-			)
-		);
-	}
-
 	const topMembers = new Map<string, string[]>();
-	for (const reportData of await Promise.all(requests)) {
+	for (const languageId of targetLanguageIds) {
+		const { status: reportStatus, identifier: reportId } = (
+			await reportsApi.generateReport(PROJECT_ID, {
+				name: 'top-members',
+				schema: {
+					unit: 'words',
+					format: 'json',
+					dateFrom: '2014-01-01T00:00:00+00:00',
+					dateTo: '2030-01-01T00:00:00+00:00',
+					languageId
+				}
+			})
+		).data;
+		let finished = reportStatus === 'finished';
+		while (!finished) {
+			await wait(1000);
+			finished = (await reportsApi.checkReportStatus(PROJECT_ID, reportId)).data.status === 'finished';
+		}
+		let reportData = (await AXIOS.get((await reportsApi.downloadReport(PROJECT_ID, reportId)).data.url)).data;
+
 		if (!('data' in reportData)) {
 			continue;
 		}
