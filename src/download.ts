@@ -175,7 +175,7 @@ export async function getTranslators(targetLanguageIds: string[]): Promise<strin
 					unit: 'words',
 					format: 'json',
 					dateFrom: '2014-01-01T00:00:00+00:00',
-					dateTo: '2030-01-01T00:00:00+00:00',
+					dateTo: new Date().getFullYear() + '-12-31T23:59:59+00:00',
 					languageId
 				}
 			})
