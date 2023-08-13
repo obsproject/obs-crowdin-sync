@@ -2,7 +2,6 @@ import { execSync } from 'child_process';
 
 /**
  * Waits a specific amount of milliseconds synchronously.
- *
  * @param millesec Number of milliseconds to wait.
  * @returns Promise resolution after `millesec` milliseconds.
  */
@@ -15,7 +14,6 @@ export function wait(millesec: number): Promise<void> {
 
 /**
  * Executes a command.
- *
  * @param command Command line command to run.
  * @returns The command output.
  */
@@ -25,7 +23,6 @@ export function exec(command: string): string {
 
 /**
  * Trims and normalizes the line endings of a `string`.
- *
  * @param text The text to normalize.
  * @returns The normalized text.
  */

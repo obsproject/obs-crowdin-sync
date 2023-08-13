@@ -18,7 +18,6 @@ const { sourceFilesApi, uploadStorageApi } = new CROWDIN({
 
 /**
  * Uses `git diff` to get the files changed by the commits.
- *
  * @returns List of files changed by the commits.
  */
 function getChangedFiles(): string[] {
@@ -29,10 +28,18 @@ function getChangedFiles(): string[] {
 	return normalize(exec(`git diff --name-only ${process.env.GITHUB_EVENT_BEFORE}..${process.env.GITHUB_SHA}`)).split('\n');
 }
 
+/**
+ * @param name The directory name.
+ * @returns The id of the directory whose directory name is the first to match `name`.
+ */
 async function getDirId(name: string): Promise<number> {
 	return (await sourceFilesApi.listProjectDirectories(PROJECT_ID, { filter: name })).data[0].data.id;
 }
 
+/**
+ * @param fileId Id of the source file to update.
+ * @param filePath Path of the file.
+ */
 async function updateSourceFile(fileId: number, filePath: string) {
 	const storageId = (await uploadStorageApi.addStorage('File.ini', await FSE.readFile(filePath))).data.id;
 
@@ -44,8 +51,8 @@ async function updateSourceFile(fileId: number, filePath: string) {
 
 /**
  * Uploads updated English source files to Crowdin.
- *
  * @param changedFiles Files changed by the commits.
+ * @param submoduleName Name of the submodule the action is executed from.
  */
 export async function upload(changedFiles: string[], submoduleName?: string): Promise<void> {
 	const crowdinFileIdMap = new Map<string, number>(); // <file export path, file id>

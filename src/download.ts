@@ -21,7 +21,6 @@ const { reportsApi, translationsApi, usersApi, projectsGroupsApi, sourceFilesApi
 
 /**
  * Retrieves submodules with translatable files.
- *
  * @returns A list of submodules with translataable files.
  */
 async function getSubmodules(): Promise<string[]> {
@@ -35,6 +34,10 @@ async function getSubmodules(): Promise<string[]> {
 	return submodules;
 }
 
+/**
+ * Remove all translations to prevent keeping dropped languages.
+ * @param sourceFilePaths List of soure file export paths.
+ */
 export async function removePreviousTranslations(sourceFilePaths: string[]): Promise<void> {
 	let pathsToClear: string[] = ['UI/data/locale', 'plugins/mac-virtualcam/src/obs-plugin/data/locale'];
 	for (const pluginRootDir of ['plugins', 'UI/frontend-plugins']) {
@@ -59,7 +62,6 @@ export async function removePreviousTranslations(sourceFilePaths: string[]): Pro
 
 /**
  * Finds submodules uneven with the main repository and checkouts `master` branch.
- *
  * @param submodules A list of submodules.
  * @returns List of detached submodules in the repository.
  */
@@ -78,7 +80,6 @@ function getDetachedSubmodules(submodules: string[]): string[] {
 
 /**
  * Mappes file ids to their export paths.
- *
  * @returns File ids mapped to their export path.
  */
 export async function getFilePaths(): Promise<Map<number, string>> {
@@ -93,7 +94,6 @@ export async function getFilePaths(): Promise<Map<number, string>> {
 
 /**
  * Maps source file ids to source string keys and source text.
- *
  * @param filePaths File ids mapped to their export path.
  * @returns Source file ids mapped to source string keys and source text.
  */
@@ -126,7 +126,6 @@ export async function getSourceFiles(filePaths: Map<number, string>): Promise<Ma
 
 /**
  * Build the final string to be saved to the AUTHORS file.
- *
  * @param gitContributors Output of getGitContributors()
  * @param translators Output of getTranslators()
  */
@@ -136,7 +135,6 @@ async function generateAuthors(gitContributors: string, translators: string): Pr
 
 /**
  * Uses `git shortlog` to get a list Git contributors.
- *
  * @returns List of contributors, with heading
  */
 function getGitContributors(): string {
@@ -152,7 +150,6 @@ function getGitContributors(): string {
 
 /**
  * Gets all translators from the Crowdin project.
- *
  * @param targetLanguageIds List of project target language ids.
  * @returns List of translators, with heading.
  */
@@ -222,7 +219,6 @@ export async function getTranslators(targetLanguageIds: string[]): Promise<strin
 
 /**
  * Builds the Crowdin project.
- *
  * @returns The build id.
  */
 export async function buildTranslations(): Promise<number> {
@@ -239,7 +235,6 @@ export async function buildTranslations(): Promise<number> {
 
 /**
  * Executes multiple language-related operations.
- *
  * @returns An object containing the properties `targetLanguageIds` and `languageCodeMap`.
  */
 export async function getLanguages(): Promise<{
@@ -259,7 +254,6 @@ export async function getLanguages(): Promise<{
 
 /**
  * Downloads the build, trims the translation files and moves them to their directories.
- *
  * @param buildId Build id.
  * @param sourceFiles Source files mapped to source string keys and their source text.
  * @param filePaths File ids mapped to their export path.
@@ -350,7 +344,6 @@ export async function processBuild(
 
 /**
  * Updates `com.obsproject.Studio.desktop` file with translations.
- *
  * @param languageFiles Locales mapped to their desktop file translations.
  */
 export async function createDesktopFile(languageFiles: Map<string, Map<string, string>>): Promise<void> {
@@ -376,7 +369,6 @@ export async function createDesktopFile(languageFiles: Map<string, Map<string, s
 
 /**
  * Updates `locale.ini` file with languages.
- *
  * @param languageList Locales mapped to their locale language name.
  * @param languageCodeMap Locales mapped to their language id.
  */
@@ -415,7 +407,6 @@ export async function createLocaleFile(languageList: Map<string, string>, langua
 }
 /**
  * Pushes all changes to the submodules and the main repository.
- *
  * @param detachedSubmodules List of detached submodules in the repository.
  * @param submodules A list of submodules.
  */
