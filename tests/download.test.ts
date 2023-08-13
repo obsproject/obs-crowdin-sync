@@ -20,7 +20,6 @@ import {
 
 /**
  * Converts a directoy structure with all sub-files into one object.
- *
  * @param filePath The path to the file or directory.
  * @returns An object representing a directory structure.
  */
