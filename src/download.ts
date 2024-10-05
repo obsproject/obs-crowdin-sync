@@ -347,7 +347,7 @@ export async function processBuild(
  * @param languageFiles Locales mapped to their desktop file translations.
  */
 export async function createDesktopFile(languageFiles: Map<string, Map<string, string>>): Promise<void> {
-	const filePath = 'UI/xdg-data/com.obsproject.Studio.desktop';
+	const filePath = 'UI/cmake/linux/com.obsproject.Studio.desktop';
 	const desktopFile = normalize(await FSE.readFile(filePath, 'utf-8'));
 	let result = '';
 	for (const line of desktopFile.split('\n')) {
@@ -433,7 +433,7 @@ function pushChanges(detachedSubmodules: string[], submodules: string[]): void {
 		'plugins/mac-virtualcam/src/obs-plugin/data/locale/*-*.ini',
 		'UI/data/locale.ini',
 		'UI/data/locale/*-*.ini',
-		'UI/xdg-data/com.obsproject.Studio.desktop',
+		'UI/cmake/linux/com.obsproject.Studio.desktop',
 		'UI/frontend-plugins/*/data/locale/*-*.ini'
 	]) {
 		exec(`git add '${allowedPath}'`);

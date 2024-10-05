@@ -567,7 +567,7 @@ it(createLocaleFile.name, async () => {
 
 it(createDesktopFile.name, async () => {
 	MOCK_FS({
-		'UI/xdg-data/com.obsproject.Studio.desktop':
+		'UI/cmake/linux/com.obsproject.Studio.desktop':
 			'[Desktop Entry]\nVersion=1.0\nName=OBS Studio\n\nGenericName[an_ES]=abc\nComment[an_ES]=abc\n'
 	});
 	await createDesktopFile(
@@ -588,7 +588,7 @@ it(createDesktopFile.name, async () => {
 			]
 		])
 	);
-	expect(await FSE.readFile('UI/xdg-data/com.obsproject.Studio.desktop', 'utf-8')).toBe(
+	expect(await FSE.readFile('UI/cmake/linux/com.obsproject.Studio.desktop', 'utf-8')).toBe(
 		'[Desktop Entry]\nVersion=1.0\nName=OBS Studio\n\nGenericName[de_DE]=deName\nComment[de_DE]=deComment\nGenericName[en_GB]=enName\nComment[en_GB]=enComment\n'
 	);
 });
