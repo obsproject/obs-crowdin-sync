@@ -467,8 +467,8 @@ function pushChanges(detachedSubmodules: string[], submodules: string[]): void {
 			generateAuthors(getGitContributors(), await getTranslators(results[0][3].targetLanguageIds)),
 			processBuild(results[0][2], await getSourceFiles(results[0][1]), results[0][1])
 		]);
-		createLocaleFile(results[1][1].languageList, results[0][3].languageCodeMap);
-		createDesktopFile(results[1][1].desktopFileTranslations);
+		await createLocaleFile(results[1][1].languageList, results[0][3].languageCodeMap);
+		await createDesktopFile(results[1][1].desktopFileTranslations);
 		pushChanges(results[0][0], submodules);
 	} catch (e) {
 		ACTIONS.setFailed(e as Error);
