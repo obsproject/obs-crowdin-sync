@@ -418,11 +418,15 @@ function pushChanges(detachedSubmodules: string[], submodules: string[]): void {
 	exec(`git config --global user.email '${STRINGS.git.committer.email}'`);
 	for (const submodule of submodules) {
 		process.chdir(`plugins/${submodule}`);
-		if (exec('git status --porcelain').length === 0) {
+		if (exec('git status --porcelain').trim().length === 0) {
 			process.chdir('../..');
 			continue;
 		}
 		exec('git add data/locale/*-*.ini');
+		if (exec('git diff --compact-summary').trim().length === 0) {
+			process.chdir('../..');
+			continue;
+		}
 		exec(`git commit -m '${STRINGS.git.commitTitle}'`);
 		exec('git push');
 		process.chdir('../..');
