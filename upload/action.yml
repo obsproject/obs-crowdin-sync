@@ -1,5 +1,5 @@
 name: Crowdin Sync Upload
 description: Uploads the English locales to Crowdin.
 runs:
-  using: node20
+  using: node24
   main: dist.js
