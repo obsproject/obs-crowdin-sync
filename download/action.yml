@@ -1,5 +1,5 @@
 name: Crowdin Sync Download
 description: Imports the newest translations from Crowdin.
 runs:
-  using: node20
+  using: node24
   main: dist.js
