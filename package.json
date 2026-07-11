@@ -9,7 +9,7 @@
 	},
 	"type": "module",
 	"dependencies": {
-		"@actions/core": "^1.10.0",
+		"@actions/core": "^1.11.1",
 		"@crowdin/crowdin-api-client": "^1.24.0",
 		"adm-zip": "^0.5.10",
 		"axios": "^1.16.0",
